@@ -594,7 +594,11 @@ def run(args):
         )
         wait_for(lambda: read_url(f"{api_origin}/healthz"), children, "the Back Office API")
         if not args.no_agent:
-            print(f"Starting local Tau agent: {agent_origin}", flush=True)
+            print(
+                f"Starting local Tau agent: {agent_origin} "
+                f"(provider={args.agent_provider}, model={args.agent_model}, thinking={args.agent_thinking})",
+                flush=True,
+            )
             start(
                 [
                     sys.executable,
@@ -707,7 +711,7 @@ def main():
     parser.add_argument(
         "--agent-provider", default=os.environ.get("TAU_LOCAL_PROVIDER", "openai-codex")
     )
-    parser.add_argument("--agent-model", default=os.environ.get("TAU_LOCAL_MODEL", "gpt-5.5"))
+    parser.add_argument("--agent-model", default=os.environ.get("TAU_LOCAL_MODEL", "gpt-5.6-luna"))
     parser.add_argument("--agent-thinking", default=os.environ.get("TAU_LOCAL_THINKING", "medium"))
     parser.add_argument(
         "--no-agent", action="store_true", help="Explicitly run only the API, MetaTables and site."

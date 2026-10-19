@@ -78,7 +78,9 @@ The launcher waits for its `/ready` endpoint and verifies both helper exclusion
 flags before reporting the stack ready. Tau uses local state under the backend's
 `.local/tau/` and `.local/tau-home/`; stopping F5 also stops this agent process.
 Provider control and inference remain live Main Sequence services. The defaults
-match the project's agent configuration: `openai-codex`, `gpt-5.5`, and `medium`.
+are `openai-codex`, `gpt-5.6-luna` (GPT-5.6 Luna), and `medium`.
+Both F5 profiles explicitly select `gpt-5.6-luna` with `--agent-model`; that
+argument takes precedence over an inherited `TAU_LOCAL_MODEL` value.
 Override them with `--agent-provider`, `--agent-model`, and `--agent-thinking`, or
 the corresponding `TAU_LOCAL_PROVIDER`, `TAU_LOCAL_MODEL`, and `TAU_LOCAL_THINKING`
 environment variables. No model call is made by the launcher verification.
