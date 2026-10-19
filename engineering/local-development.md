@@ -20,6 +20,9 @@ the installed Main Sequence MetaTables API, and Vite together.
 ## Start and stop
 
 Select **Back Office: local stack** in Run and Debug, then press **F5**.
+The launch pins both the debugger launcher and the application to the backend's
+`.venv`. If VS Code still starts the script with a globally selected Python, the
+script relaunches itself with the backend interpreter before importing SDKs.
 
 | Service | Default address |
 | --- | --- |
@@ -41,7 +44,7 @@ developer gateway, enables Python reload, and starts Vite with HMR. It verifies
 starter; document-management screens remain subsequent work.
 
 Stop the debugging session or use Ctrl+C in its terminal to stop the processes
-owned by that launch. A pre-existing shared MetaTables process remains running.
+owned by that launch. A pre-existing healthy MetaTables process remains running.
 Local records persist across starts. The launcher never deletes a database.
 
 Python debugging includes subprocesses, including the API reload worker. The
@@ -73,12 +76,23 @@ The default uses the laptop's shared MetaTables SQLite store. An already-running
 API is reused only after its runtime can be verified; failure never redirects to
 hosted MetaTables or another database.
 
-If a prior MetaTables launch returns `503` with unavailable platform identity facts,
-close or restart that launch, then start **Back Office: local stack** again. This
-was observed with the pre-existing API during verification; the launcher reports
-it clearly and leaves that process and its Admin session untouched. An occupied API
-or Vite port also fails before additional services start. Adjust the launch arguments
-and the browser-debugger URL together when changing ports.
+The VS Code profile enables `--restart-unhealthy-metatables`. If the registered
+local runtime returns the specific `503` identity-unavailable error, the launcher
+first verifies the current developer session, then gracefully stops only the
+same-user process identified by MetaTables' private connection record. Its PID,
+creation time, and launch ID must still match. Other errors do not trigger a restart.
+
+Recovery reuses the original configuration file and its saved database selection;
+it never deletes or replaces the database. A non-secret configuration-path pointer
+is saved in `.local/dev-stack.json` so later F5 launches use the same configuration.
+An explicit `--metatables-configuration` argument takes precedence. A missing saved
+configuration fails with an error instead of selecting another database.
+
+The stopped legacy launch may also own an Admin dev server; that server stops with
+it. Back Office starts the corrected MetaTables API. Healthy pre-existing runtimes
+continue to be reused. Occupied API or Vite ports fail before additional services
+start. Port checks allow recently closed connections, so immediate restarts work.
+Adjust the launch arguments and browser-debugger URL together when changing ports.
 
 The backend pins `mainsequence==9.0.29` and `mainsequence-metatable==0.1.47`.
 For these versions, its developer-session adapter uses the same renewing CLI
@@ -100,6 +114,7 @@ shut down the processes it started:
 ../backofficebackend-75d8081d-5e8f-4dc6-ab09-60bc832d0118/.venv/bin/python \
   scripts/dev_stack.py \
   --backend-dir ../backofficebackend-75d8081d-5e8f-4dc6-ab09-60bc832d0118 \
+  --restart-unhealthy-metatables \
   --verify-only
 ```
 

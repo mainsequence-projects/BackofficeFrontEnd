@@ -6,13 +6,15 @@
       "type": "debugpy",
       "request": "launch",
       "python": "${workspaceFolder}/${config:backoffice.backendPath}/.venv/bin/python",
+      "debugLauncherPython": "${workspaceFolder}/${config:backoffice.backendPath}/.venv/bin/python",
       "program": "${workspaceFolder}/scripts/dev_stack.py",
       "args": [
         "--backend-dir", "${workspaceFolder}/${config:backoffice.backendPath}",
         "--api-port", "8001",
         "--site-port", "5174",
         "--metatables-port", "18473",
-        "--sdk-session-source", "vscode"
+        "--sdk-session-source", "vscode",
+        "--restart-unhealthy-metatables"
       ],
       "cwd": "${workspaceFolder}/${config:backoffice.backendPath}",
       "envFile": "${workspaceFolder}/${config:backoffice.backendPath}/.env",

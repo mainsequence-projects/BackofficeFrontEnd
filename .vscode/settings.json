@@ -1,3 +1,4 @@
 {
-  "backoffice.backendPath": "../backofficebackend-75d8081d-5e8f-4dc6-ab09-60bc832d0118"
+  "backoffice.backendPath": "../backofficebackend-75d8081d-5e8f-4dc6-ab09-60bc832d0118",
+  "python.defaultInterpreterPath": "${workspaceFolder}/../backofficebackend-75d8081d-5e8f-4dc6-ab09-60bc832d0118/.venv/bin/python"
 }
