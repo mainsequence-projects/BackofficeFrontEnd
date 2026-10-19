@@ -2,7 +2,15 @@
 
 Status: frontend implemented with Command Center SDK 0.5.18 and Command Center AI
 0.0.15 on 2026-10-19. The API's ADR 0002 owns the read-only Back Office Agent.
-Live conversation verification awaits that Agent and its discovery endpoint.
+Local chat was verified through the SDK proxy with a real GPT-5.6 Luna response.
+Hosted conversation verification still awaits that Agent and its discovery endpoint.
+
+Top-level loopback development uses `createLocalAgentSource` and the SDK's
+`localAgentProxy` at `/__agent__`, targeting Back Office Tau on port 28643 (or
+`MAINSEQUENCE_TAU_LOCAL_ORIGIN`). It skips hosted discovery and platform sessions;
+the SDK owns local readiness, streaming, session history and the model picker.
+Provider settings follow the engine's capabilities. Local business MCP binding and
+verified-requester authorization remain required before case queries can work.
 
 ## Current integration decision
 
@@ -38,14 +46,16 @@ Resolve both values server-side in the API's own Environment, including access
 to the current deployed Agent; never use the person's selected host Environment.
 Return an explicit unavailable error when no compatible Agent exists. No browser
 build value contains either UID. The frontend resolves the endpoint on opening
-the assistant, explicit retry and network reconnection. Local development also
-requires the proxy's signed-in identity to match the business API viewer.
+the assistant, explicit retry and network reconnection. This contract applies to
+the hosted source; local development selects its same-origin Tau source explicitly.
 
 `src/assistant/connection.ts` owns discovery and the authenticated platform sender.
 `src/assistant/Assistant.tsx` owns the single provider, rail, expanded page,
 context and navigation. `src/assistant/assistant.css` places the package surfaces
 without recreating their chrome. `tests/assistant.mjs` uses the published package's
-scripted platform/runtime in test code only; it is absent from production bundles.
+scripted platform/runtime through the actual SDK iframe bridge in test code only;
+it is absent from production bundles. `tests/assistant-local.mjs` verifies the local
+source through the actual Vite proxy, including reload history and proxy guards.
 
 The remaining sections retain the broader delivery plan. Backend agent rollout,
 live Environment verification and any future write tools remain separate work.

@@ -5,13 +5,14 @@ import {
   ChatPageLayout,
   ChatRail,
   ChatThread,
+  createLocalAgentSource,
   ModelProviderSettings,
   useChatEngine,
   type ChatDefaultSession,
   type ChatNotice,
 } from "@dev-mainsequence/command-center-ai";
 import { Button } from "@dev-mainsequence/command-center-sdk/controls";
-import { errorText } from "../api";
+import { api, errorText } from "../api";
 import { assistantConnection, assistantViewer, loadAssistantContext, type AssistantContext } from "./connection";
 import "./assistant.css";
 
@@ -54,7 +55,7 @@ export function AssistantWorkspace({ children, path, userUid, onNavigate }: {
   const [width, setWidth] = useState(540);
   const [docked, setDocked] = useState(() => matchMedia("(min-width: 1400px)").matches);
   const [context, setContext] = useState<AssistantContext | null>(null);
-  const [viewerUid, setViewerUid] = useState<string | null>(null);
+  const [viewerUid, setViewerUid] = useState<string | null>(api.local ? userUid : null);
   const [failure, setFailure] = useState("");
   const [attempt, retry] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,11 @@ export function AssistantWorkspace({ children, path, userUid, onNavigate }: {
   const requestedSessionId = expanded ? new URL(path, location.origin).searchParams.get("session") : railSessionId;
   const notify = useCallback((value: ChatNotice) => setNotice(value), []);
   const auth = useMemo(() => ({ userUid: viewerUid }), [viewerUid]);
+  const localSource = useMemo(() => api.local ? createLocalAgentSource({
+    baseUrl: "/__agent__",
+    displayName: "Back Office Helper",
+    userUid,
+  }) : undefined, [userUid]);
   const viewContext = useMemo(() => recordContext(contextPath), [contextPath]);
   useEffect(() => {
     if (!expanded) {
@@ -86,6 +92,10 @@ export function AssistantWorkspace({ children, path, userUid, onNavigate }: {
   }, []);
   useEffect(() => {
     if (!visible) return;
+    if (api.local) {
+      setViewerUid(userUid);
+      return;
+    }
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]);
     setLoading(true);
@@ -114,16 +124,19 @@ export function AssistantWorkspace({ children, path, userUid, onNavigate }: {
     status: loading || !visible ? "loading" : failure ? "error" : context ? "ready" : "loading",
     unavailableMessage: failure || "The Back Office agent is not available in this environment.",
   }), [context, failure, loading, visible]);
+  const engineSource = localSource ? { source: localSource } : {
+    auth,
+    connection: assistantConnection,
+    defaultSession,
+    environmentUid: context?.environmentUid ?? null,
+    showsDefaultSession: !requestedSessionId,
+  };
   return (
     <ChatEngineProvider
-      auth={auth}
-      connection={assistantConnection}
-      defaultSession={defaultSession}
-      environmentUid={context?.environmentUid ?? null}
+      {...engineSource}
       isVisible={visible && !loading && !failure}
       notify={notify}
       requestedSessionId={requestedSessionId}
-      showsDefaultSession={!requestedSessionId}
       viewContext={viewContext}
       onRequestVisible={() => setOpen(true)}
       onRequestedSessionRemoved={() => { setRailSessionId(null); if (expanded) onNavigate("/agent"); }}
@@ -201,7 +214,7 @@ function AssistantSurfaces({ children, contextLabel, docked, expanded, open, wid
       </div> : loading ? <div className="backoffice-assistant-unavailable" role="status">Connecting to the Back Office agent…</div> : providers ? <div className="backoffice-assistant-providers">
         <Button size="small" onClick={() => setProviders(false)}>Back to conversation</Button>
         <ModelProviderSettings auth={{ userUid }} connection={assistantConnection} notify={notify} organizationEnvironmentUid={environmentUid} />
-      </div> : <ChatThread copy={copy} surface={expanded ? "page" : "overlay"} viewer={{ uid: userUid }} onOpenModelProviderSettings={() => setProviders(true)} />}
+      </div> : <ChatThread copy={copy} surface={expanded ? "page" : "overlay"} viewer={{ uid: userUid }} onOpenModelProviderSettings={engine.capabilities.modelProviderSettings ? () => setProviders(true) : undefined} />}
     </div>
   );
   return (
@@ -209,7 +222,7 @@ function AssistantSurfaces({ children, contextLabel, docked, expanded, open, wid
       <div className="backoffice-assistant-content">
         {expanded ? <div className="backoffice-assistant-page">
           <ChatPageLayout
-            explorer={environmentUid ? { onOpenSession: (id) => onNavigate(`/agent${id ? `?session=${encodeURIComponent(id)}` : ""}`) } : null}
+            explorer={api.local || environmentUid ? { onOpenSession: (id) => onNavigate(`/agent${id ? `?session=${encodeURIComponent(id)}` : ""}`) } : null}
             onCreateSession={() => onNavigate("/agent")}
             onMinimize={() => { rememberSession(engine.currentSessionId); onNavigate(returnTo); setOpen(true); }}
           >{conversation}</ChatPageLayout>

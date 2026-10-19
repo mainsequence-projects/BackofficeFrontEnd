@@ -86,9 +86,13 @@ the corresponding `TAU_LOCAL_PROVIDER`, `TAU_LOCAL_MODEL`, and `TAU_LOCAL_THINKI
 environment variables. No model call is made by the launcher verification.
 
 The existing helper policy still requires a verified requester for business tools;
-local startup does not bypass that check or register a hosted Agent. The current
-assistant rail uses the deployed-agent connection; starting Tau does not switch
-that rail to a local source. Use `--no-agent` only when deliberately testing the
+local startup does not bypass that check or register a hosted Agent. The local
+assistant rail uses Command Center AI's `createLocalAgentSource` through the SDK's
+same-origin `/__agent__` proxy to this Back Office runtime. It does not request
+deployed-Agent discovery or create platform sessions. The dev server uses
+`MAINSEQUENCE_TAU_LOCAL_ORIGIN`, defaulting to `http://127.0.0.1:28643`; the launcher
+sets it from `--agent-port`. Production builds retain the platform connection.
+Use `--no-agent` only when deliberately testing the
 API and site without Tau.
 
 Python debugging targets the launcher. Child services run normally and their

@@ -9,7 +9,7 @@ import { Button } from "@dev-mainsequence/command-center-sdk/controls";
 import {
   applyThemePresetToRoot,
   resolveCommandCenterThemeById,
-  mainSequenceTheme,
+  mainSequenceSpaceTheme,
   quartzLightTheme,
 } from "@dev-mainsequence/command-center-sdk/theme";
 import { api, ApiError, errorText, type Catalog } from "./api";
@@ -172,7 +172,7 @@ export default function App() {
       const theme =
         resolveCommandCenterThemeById(
           new URLSearchParams(location.search).get("theme") ?? "",
-        ) ?? mainSequenceTheme;
+        ) ?? mainSequenceSpaceTheme;
       applyThemePresetToRoot(document.documentElement, { theme });
       identity.current = null;
       void start();
@@ -199,7 +199,7 @@ export default function App() {
             resolveCommandCenterThemeById(context.themeId) ??
             (context.themeMode === "light"
               ? quartzLightTheme
-              : mainSequenceTheme),
+              : mainSequenceSpaceTheme),
         });
         if (started && context.userUid !== identity.current) {
           identity.current = context.userUid;

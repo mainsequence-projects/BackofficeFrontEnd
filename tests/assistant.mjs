@@ -27,7 +27,9 @@ const scripted = await readFile(resolve(output, "stand-in/stand-in.js"), "utf8")
 // Vite's programmatic build sets NODE_ENV when it was absent. This server must
 // exercise the explicit top-level development transport, not the hosted gate.
 process.env.NODE_ENV = "development";
-const server = await createServer({ root, server: { port: 15178, strictPort: true }, logLevel: "error" });
+process.env.VITE_COMMAND_CENTER_ORIGIN = "http://127.0.0.1:15178";
+process.env.VITE_BACKOFFICE_API_RELEASE_UID = "00000000-0000-4000-8000-000000000004";
+const server = await createServer({ root, server: { port: 15178, strictPort: true, hmr: false }, logLevel: "error" });
 await server.listen();
 const browser = await chromium.launch();
 const errors = [];
@@ -59,26 +61,55 @@ async function newPage(viewport = { width: 1440, height: 900 }, theme = "main-se
       return standIn.fetch(request);
     };
   }` });
-  await page.route("**/api/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
+  await page.route("http://127.0.0.1:15178/**", async (route) => {
+    if (route.request().isNavigationRequest()) return route.continue();
+    const path = new URL(route.request().url()).pathname.replace(/^\/api(?=\/)/, "");
+    if (!["/me", "/readyz", "/person-schema", "/document-types", "/document-sets", "/persons", "/assistant/context"].includes(path)) return route.continue();
     let data = { items: [], total_items: 0, has_more: false };
-    if (path === "/api/me") data = { user_uid: identity.userUid, can_review: false };
-    if (path === "/api/readyz") data = { status: "ready" };
-    if (path === "/api/person-schema") data = { type: "object", properties: {} };
-    if (path === "/api/assistant/context") {
+    if (path === "/me") data = { user_uid: identity.userUid, can_review: false };
+    if (path === "/readyz") data = { status: "ready" };
+    if (path === "/person-schema") data = { type: "object", properties: {} };
+    if (path === "/assistant/context") {
       await route.fulfill({ status: contextStatus, json: contextStatus === 200 ? identity : { detail: "not configured" } });
       return;
     }
     await route.fulfill({ json: data });
   });
-  await page.goto(`http://127.0.0.1:15178/persons?theme=${theme}#case-list`);
+  // Hosted conversations must run in the SDK's real iframe bridge. A top-level
+  // development page deliberately selects the local Tau source instead.
+  await page.route("**/__assistant_host__", async (route) => route.fulfill({
+    contentType: "text/html",
+    body: await server.transformIndexHtml("/__assistant_host__", `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0"><script type="module">
+      import {createStaticSiteIframeHost} from '@dev-mainsequence/command-center-sdk/embed';
+      const iframe=document.createElement('iframe');
+      iframe.style='width:100%;height:100dvh;border:0';document.body.append(iframe);
+      const host=createStaticSiteIframeHost({targetOrigin:location.origin,targetWindow:iframe.contentWindow,
+        context:{themeId:${JSON.stringify(theme)},themeMode:${JSON.stringify(theme === "quartz-light" ? "light" : "dark")},userUid:${JSON.stringify(identity.userUid)}},
+        resolveFastApiCredential:async()=>({resourceReleaseUid:${JSON.stringify(process.env.VITE_BACKOFFICE_API_RELEASE_UID)},rpcUrl:location.origin,token:'scripted-verification-only',expiresAt:new Date(Date.now()+240000).toISOString()}),
+        sendPlatformRequest:async(request)=>iframe.contentWindow.chatStandIn.fetch(new URL(request.path,location.origin).toString(),{method:request.method,headers:{...request.headers,Authorization:'Bearer scripted-verification-only'},body:request.body})
+      });
+      addEventListener('message',event=>host.handleMessage(event));
+      iframe.src=${JSON.stringify(`/persons?theme=${theme}#case-list`)};
+    </script></body></html>`),
+  }));
+  await page.goto("http://127.0.0.1:15178/__assistant_host__");
+  await page.frameLocator("iframe").getByRole("button", { name: "Ask Back Office", exact: true }).waitFor();
+  const frame = page.frames().find((candidate) => candidate.url().includes("/persons?"));
+  assert.ok(frame);
+  const surface = new Proxy(frame, {
+    get(target, property) {
+      const owner = ["viewportSize", "screenshot", "close", "mouse"].includes(property) ? page : target;
+      const value = Reflect.get(owner, property);
+      return typeof value === "function" ? value.bind(owner) : value;
+    },
+  });
   try {
-    await page.getByRole("button", { name: "Ask Back Office", exact: true }).waitFor();
+    await surface.getByRole("button", { name: "Ask Back Office", exact: true }).waitFor();
   } catch (error) {
     console.error(errors, await page.locator("body").innerText());
     throw error;
   }
-  return page;
+  return surface;
 }
 async function send(page, text) {
   const priorTurns = await page.evaluate(() => window.chatStandIn.turns.length);
@@ -191,7 +222,7 @@ try {
 } catch (error) {
   for (const context of browser.contexts()) {
     for (const page of context.pages()) {
-      console.error("Assistant browser failure:", errors, (await page.locator("body").innerText()).slice(0, 6000));
+      for (const frame of page.frames()) console.error("Assistant browser failure:", frame.url(), errors, (await frame.locator("body").innerText()).slice(0, 6000));
       await page.screenshot({ path: resolve(output, "failure.png") });
     }
   }
