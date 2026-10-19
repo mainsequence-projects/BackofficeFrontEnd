@@ -18,16 +18,16 @@ reviewers can also open cases that need review.
 
 ## What you can do
 
-Create a person, edit their reference profile, open their documents, assign a
-published document set, select evidence, and inspect recorded case activity.
+Create a person, edit their reference profile, open their documents, create a typed case with a
+published Document Set version, select evidence, and inspect recorded case activity.
 
 ## Common tasks
 
 1. Select **New person** and enter the known reference information. Use
    **Add residential address** for address details. Leave unknown values empty.
 2. Select **Create person**. The person's detail page opens.
-3. Open **Requirements**, choose a **Published document set**, and select
-   **Assign document set**. Its version appears on the assignment.
+3. Open **Requirements**, choose a **Case type** and a permitted **Document Set version**,
+   then select **Create case**. Its type and pinned version appear on the case.
 4. Open **Documents** to add source evidence and complete a document.
 5. Return to **Requirements**, choose **Evidence documents**, and select
    **Add selected evidence**. Then choose **Evaluate requirements** to see findings.
@@ -41,8 +41,8 @@ The profile revision changes when reference information is saved. These values
 are separate from claims printed on a document. Missing employment or residency
 information can leave requirement applicability undetermined.
 
-Assignments stay pinned to their published document-set version. Adding another
-assignment is explicit. Existing evidence membership is retained when you add
+Cases stay pinned to their published Document Set version. Creating another
+case is explicit; a subject can have both loan and account-opening cases. Existing evidence membership is retained when you add
 more documents. A later profile change can make previous evaluations out of date.
 
 ## If something goes wrong
@@ -50,5 +50,5 @@ more documents. A later profile change can make previous evaluations out of date
 If the record changed while you were editing, your entered values remain visible.
 Choose **Reload latest**, compare the current values, and apply your edit again.
 An interrupted-change notice offers **Resume and reload** for the original change.
-If no person appears, check the search or create a new case. Ask for reviewer
+If no person appears, check the search or create a new person. Ask for reviewer
 access when a case you need to review is not available.

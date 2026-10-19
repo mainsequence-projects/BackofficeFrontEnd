@@ -159,14 +159,15 @@ await page.route("**/api/**", async (route) => {
       full_name: "Synthetic comparison case",
       revision: 1,
     };
-  else if (path === `/persons/${person}/assignments`)
+  else if (path === `/persons/${person}/cases`)
     result = {
       items: [
-        { uid: id(99), set_key: "older", set_version: 1 },
+        { uid: id(99), document_set_key: "older", document_set_version: 1, case_type: {name: "Document review"} },
         {
           uid: assignment,
-          set_key: policy.key,
-          set_version: policy.version,
+          document_set_key: policy.key,
+          document_set_version: policy.version,
+          case_type: {name: policy.key === "loan_requirements" ? "New loan" : "Account opening"},
           revision: 2,
         },
       ],
@@ -177,9 +178,9 @@ await page.route("**/api/**", async (route) => {
       summary: { evaluation_date: "2026-10-19", complete: false },
       findings: report().findings,
     };
-  else if (path === `/assignments/${assignment}`)
+  else if (path === `/cases/${assignment}`)
     result = { uid: assignment, revision: 2 };
-  else if (path.match(/^\/assignments\/[^/]+\/evaluations$/)) {
+  else if (path.match(/^\/cases\/[^/]+\/evaluations$/)) {
     observedAssignment = path.split("/")[2];
     if (request.method() === "POST") {
       result =

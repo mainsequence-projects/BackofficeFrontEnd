@@ -12,8 +12,8 @@ details still need attention.
 
 ## Open this page
 
-Choose **Reconciliation** and select a **Person** and **Assignment**. You can
-also open it with **Evaluate requirements** on the person's assignment.
+Choose **Reconciliation** and select a **Person** and **Case**. You can
+also open it with **Evaluate requirements** on the person's case.
 
 ## What you can do
 
@@ -40,15 +40,15 @@ revisions, and review retained evaluation history.
 - **Needs information**: required attributes or applicability information are missing.
 - **Not applicable**: the policy condition does not apply to the person.
 
-The result identifies the policy version, profile revision, assignment revision,
+The result identifies the policy version, profile revision, case revision,
 and evaluation time. **Out of date** means the case changed after evaluation.
 Completion requires every applicable mandatory requirement to be satisfied.
 
 ## If something goes wrong
 
-If no assignment is available, choose **Assign document requirements**. If the
+If no case is available, choose **Create a case**. If the
 result is out of date, choose **Run fresh evaluation**. If evaluation reports a
-changed assignment, reload the current case before trying again. A failed or
+changed case, reload the current case before trying again. A failed or
 interrupted evaluation never means the case is complete; follow the displayed
 recovery action or use **Resume and reload**.
 

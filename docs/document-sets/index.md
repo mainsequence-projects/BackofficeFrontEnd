@@ -12,7 +12,7 @@ Understand which evidence a published policy requires before assigning it to a p
 ## Open this page
 
 Choose **Document Sets** and open a document set by its name. You can also
-select **View requirements** on a person's assignment.
+select **View requirements** on a person's case.
 
 ## What you can do
 
@@ -23,8 +23,8 @@ alternatives, minimum distinct counts, validity rules, age limits, and condition
 
 1. Open **New account requirements** and read its description.
 2. Check each requirement's alternatives and whether it applies to the person.
-3. Return to **People**, open the person's **Requirements** tab, and use
-   **Assign document set** to select the published version explicitly.
+3. Return to **Subjects**, open the person's **Requirements** tab, choose a
+   **Case type** and permitted **Document Set version**, then select **Create case**.
 
 The initial policy is illustrative. Review its age limits and evidence choices
 with your organization before using it for business decisions.
@@ -37,7 +37,7 @@ uploading duplicate evidence does not increase the qualifying count.
 
 Conditional requirements apply only when the reference profile meets the stated
 condition. Missing information produces a finding asking for clarification.
-An existing assignment does not silently move to another published version.
+An existing case does not silently move to another published version.
 The document-set page is read-only.
 
 ## If something goes wrong
@@ -51,7 +51,7 @@ an unsuitable requirement; do not substitute fabricated evidence.
 
 A requirement accepts any qualifying alternative; identity can be satisfied by a
 passport or national identity card. Check the version in the list and on the
-assignment: existing assignments retain their original version.
+case: existing cases retain their original version.
 
 Version 1 retains its original 90-day address rule. Version 2 accepts address
 evidence and completed questionnaires up to six calendar months old, and requires
@@ -81,5 +81,5 @@ and any numeric tolerances. Those rules are applied by Back Office.
 
 Loan requirements version 2 and new account requirements version 3 include
 illustrative comparison rules. Choose the published version explicitly when
-assigning it. Existing assignments keep their selected version. Loans and new
+assigning it. Existing cases keep their selected version. Loans and new
 accounts use the same processing, review and evaluation screens.

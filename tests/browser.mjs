@@ -102,10 +102,18 @@ try {
     personUid = new URL(page.url()).pathname.split("/")[2];
     await page.getByRole("tab", { name: /^Requirements/ }).click();
     await page
-      .getByRole("button", { name: "Assign document set", exact: true })
+      .getByRole("button", { name: "New case type", exact: true })
+      .click();
+    await page.getByRole("option", { name: /^Account opening/ }).click();
+    await page
+      .getByRole("button", { name: "Document Set version", exact: true })
+      .click();
+    await page.getByRole("option").first().click();
+    await page
+      .getByRole("button", { name: "Create case", exact: true })
       .click();
     await page
-      .getByText("Requirements assigned at the selected version.", {
+      .getByText("Case created with its pinned Document Set.", {
         exact: true,
       })
       .waitFor();
@@ -116,7 +124,7 @@ try {
   console.log(
     process.env.BACKOFFICE_TEST_PERSON
       ? "Resumed the synthetic case after checking its stored identity and assignment."
-      : "Created a person and assigned the pinned policy through the SDK screens.",
+      : "Created a subject and typed case with its pinned policy through the SDK screens.",
   );
   const types = (await request("/document-types")).items;
   const existingDocuments = process.env.BACKOFFICE_TEST_PERSON
@@ -223,7 +231,7 @@ try {
       .getByRole("button", { name: "Add selected evidence", exact: true })
       .click();
     await page
-      .getByText("Evidence linked to assignment.", { exact: true })
+      .getByText("Evidence linked to case.", { exact: true })
       .waitFor();
   }
   await page

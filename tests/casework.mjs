@@ -26,6 +26,12 @@ const staff = id(101),
   left = id(3),
   right = id(4),
   run = id(8);
+const caseTypes = policies.map((p, i) => ({
+  key: i ? "account_opening" : "new_loan",
+  name: i ? "Account opening" : "New loan",
+  description: "Business case type",
+  document_sets: [{ key: p.key, version: p.version, name: p.name }],
+}));
 const output = resolve(".local/casework-verification");
 await mkdir(output, { recursive: true });
 const server = await createServer({
@@ -165,6 +171,7 @@ function workspace() {
     },
   }));
   return {
+    case: { uid: assignment, case_type: caseTypes[policies.indexOf(policy)] },
     assignment: {
       uid: assignment,
       person_uid: subject,
@@ -252,6 +259,8 @@ function queue(url) {
       ][i],
       external_reference: `SYN-${10569 + i}`,
     },
+    case_type: caseTypes[i % 2],
+    case_type_key: caseTypes[i % 2].key,
     set_key: policies[i % 2].key,
     set_version: policies[i % 2].version,
     document_count: 7 - (i % 3),
@@ -286,8 +295,8 @@ function queue(url) {
     );
   if (q.get("responsibility") === "unassigned")
     rows = rows.filter((r) => !r.reviewers.length);
-  if (q.get("set_key"))
-    rows = rows.filter((r) => r.set_key === q.get("set_key"));
+  if (q.get("case_type_key"))
+    rows = rows.filter((r) => r.case_type_key === q.get("case_type_key"));
   if (q.get("search"))
     rows = rows.filter((r) =>
       r.subject.full_name.toLowerCase().includes(q.get("search").toLowerCase()),
@@ -318,10 +327,20 @@ await page.route("**/api/**", async (route) => {
     result = { type: "object", properties: {} };
   else if (path === "/document-types") result = { items: [] };
   else if (path === "/document-sets") result = { items: policies };
-  else if (path === "/review-queue") result = queue(url);
-  else if (path === `/assignments/${assignment}/workspace`)
-    result = workspace();
-  else if (path === `/assignments/${assignment}/reviewers/me`) {
+  else if (path === "/case-types") result = { items: caseTypes };
+  else if (path === "/persons")
+    result = { items: [{ uid: subject, full_name: "Eva Horáková" }] };
+  else if (path === "/cases" && req.method() === "POST") {
+    const body = req.postDataJSON();
+    assert.equal(body.subject_uid, subject);
+    assert.equal(body.case_type_key, "account_opening");
+    assert.equal(body.document_set_key, policies[1].key);
+    assert.equal(body.document_set_version, policies[1].version);
+    result = { uid: assignment, revision: 1 };
+    status = 201;
+  } else if (path === "/cases") result = queue(url);
+  else if (path === `/cases/${assignment}/workspace`) result = workspace();
+  else if (path === `/cases/${assignment}/reviewers/me`) {
     assert.equal(req.method(), "PUT");
     const body = req.postDataJSON();
     assert.equal(body.expected_revision, memberRevision);
@@ -337,9 +356,9 @@ await page.route("**/api/**", async (route) => {
     reviewed = true;
     result = { uid: id(44) };
     status = 201;
-  } else if (path === `/assignments/${assignment}`)
+  } else if (path === `/cases/${assignment}`)
     result = { uid: assignment, revision: 2 };
-  else if (path === `/assignments/${assignment}/evaluations`) {
+  else if (path === `/cases/${assignment}/evaluations`) {
     result = { processing_run_uid: run };
     status = 202;
   } else if (path === `/processing-runs/${run}`) {
@@ -431,6 +450,7 @@ async function geometry() {
 try {
   await page.goto("http://127.0.0.1:15191/queue?theme=quartz-light");
   await page.getByRole("heading", { name: "Case review queue" }).waitFor();
+  await page.getByText("1–10 of 12").waitFor();
   assert.equal(await page.locator(".case-table tbody tr").count(), 10);
   assert.equal(
     await page.locator(".case-stat").first().innerText(),
@@ -566,27 +586,87 @@ try {
   await page.getByRole("textbox", { name: "Search case subjects" }).fill("Eva");
   await page.getByText("1–1 of 1").waitFor();
   assert.equal(await page.locator(".case-table tbody tr").count(), 1);
-  await page.getByRole("textbox", {name: "Search case subjects"}).fill("");
+  await page.getByRole("textbox", { name: "Search case subjects" }).fill("");
   await page.getByText("1–10 of 12").waitFor();
-  await page.getByRole("button", {name: "Reviewer responsibility", exact: true}).click();
-  await page.getByRole("option", {name: "Unassigned", exact: true}).click();
+  await page
+    .getByRole("button", { name: "Reviewer responsibility", exact: true })
+    .click();
+  await page.getByRole("option", { name: "Unassigned", exact: true }).click();
   await page.getByText("1–8 of 8").waitFor();
-  assert.equal(await page.locator(".case-table tbody .case-reviewer").count(), 0);
-  await page.getByRole("button", {name: "Reviewer responsibility", exact: true}).click();
-  await page.getByRole("option", {name: "Assigned to me", exact: true}).click();
-  await page.getByText("0 cases", {exact: true}).waitFor();
+  assert.equal(
+    await page.locator(".case-table tbody .case-reviewer").count(),
+    0,
+  );
+  await page
+    .getByRole("button", { name: "Reviewer responsibility", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "Assigned to me", exact: true })
+    .click();
+  await page.getByText("0 cases", { exact: true }).waitFor();
 
   assert(
-    requests.some(
-      (r) => r.path === "/review-queue" && r.query.includes("offset=10"),
-    ),
+    requests.some((r) => r.path === "/cases" && r.query.includes("offset=10")),
   );
   assert(
-    requests.some(
-      (r) => r.path === "/review-queue" && r.query.includes("search=Eva"),
-    ),
+    requests.some((r) => r.path === "/cases" && r.query.includes("search=Eva")),
   );
+  await page.getByRole("button", {name: "Reviewer responsibility", exact: true}).click();
+  await page.getByRole("option", {name: "All accessible cases", exact: true}).click();
+  await page.getByText("1–10 of 12").waitFor();
+  await page.getByRole("button", {name: "Case type", exact: true}).click();
+  await page.getByRole("option", {name: "New loan", exact: true}).click();
+  await page.getByText("1–6 of 6").waitFor();
+  assert.equal(await page.locator(".case-table tbody tr").count(), 6);
+  await page.getByRole("button", {name: "Case type", exact: true}).click();
+  await page.getByRole("option", {name: "Account opening", exact: true}).click();
+  await page.waitForFunction(() => [...document.querySelectorAll(".case-table tbody tr")].every(row => row.textContent.includes("Account opening")));
+  assert(requests.some(r => r.path === "/cases" && r.query.includes("case_type_key=account_opening")));
   assert(!requests.some((r) => r.path === "/persons"));
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await page.getByRole("button", { name: "New case", exact: true }).click();
+  const createButton = page.getByRole("button", {
+    name: "Create case",
+    exact: true,
+  });
+  assert(await createButton.isDisabled());
+  await page.getByRole("button", { name: "Case subject", exact: true }).click();
+  await page.getByRole("option", { name: /Eva Horáková/ }).click();
+  await page
+    .getByRole("button", { name: "New case type", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^New loan/ }).click();
+  await page
+    .getByRole("button", { name: "Document Set version", exact: true })
+    .click();
+  assert.equal(
+    await page
+      .getByRole("option", { name: new RegExp(policies[1].name) })
+      .count(),
+    0,
+  );
+  await page
+    .getByRole("option", { name: new RegExp(policies[0].name) })
+    .click();
+  assert(await createButton.isEnabled());
+  await page
+    .getByRole("button", { name: "New case type", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^Account opening/ }).click();
+  assert(await createButton.isDisabled());
+  await page
+    .getByRole("button", { name: "Document Set version", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: new RegExp(policies[1].name) })
+    .click();
+  await page.screenshot({
+    path: resolve(output, "case-creation.png"),
+    fullPage: true,
+  });
+  await createButton.click();
+  await page.waitForURL(/\/review\//);
+  assert(requests.some((r) => r.path === "/cases" && r.method === "POST"));
   assert.deepEqual(errors, []);
   console.log(
     "Case dashboards passed: queue pagination/search, distinct subject/staff, multi-reviewer membership, cited source selection, revision review, retained report, stale comparison exclusion, async checks, both workflows, permissions, light/dark/mobile.",

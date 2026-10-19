@@ -44,6 +44,7 @@ import {
   OperationRecovery,
 } from "./ui";
 import { navigate } from "./App";
+import { CaseCreation } from "./CaseDashboard";
 import { ProcessingRun, evaluationPath } from "./ProcessingRun";
 import { ComparisonPolicy, ComparisonFindings, ExtractionEvidence } from "./ComparisonEvidence";
 
@@ -252,7 +253,7 @@ export function PersonPage({
           }
         : {
             person: await api.get(`/persons/${uid}`, signal),
-            assignments: (await api.get(`/persons/${uid}/assignments`, signal))
+            assignments: (await api.get(`/persons/${uid}/cases`, signal))
               .items,
             documents: (await api.get(`/persons/${uid}/documents`, signal))
               .items,
@@ -553,49 +554,9 @@ function Requirements({
   documents: Row[];
   refresh: () => void;
 }) {
-  const [selected, setSelected] = useState(
-    catalog.sets[0] ? `${catalog.sets[0].key}@${catalog.sets[0].version}` : "",
-  );
-  const action = useAction(refresh);
   return (
     <ApplicationPageStack>
-      <ApplicationCard header={<h2>Assign document requirements</h2>}>
-        <div className="form-stack">
-          <Field label="Published document set">
-            <ResourcePicker
-              ariaLabel="Published document set"
-              fullWidth
-              value={selected}
-              onValueChange={setSelected}
-              options={catalog.sets.map((s) => ({
-                value: `${s.key}@${s.version}`,
-                label: s.name,
-                meta: `Version ${s.version}`,
-                subtitle: s.description,
-              }))}
-            />
-          </Field>
-          {action.feedback}
-          <div className="actions">
-            <Button
-              variant="primary"
-              pending={action.pending}
-              disabled={!selected}
-              onClick={() =>
-                void action.run(async () => {
-                  const [key, version] = selected.split("@");
-                  await api.command(`/persons/${personUid}/document-sets`, {
-                    document_set_key: key,
-                    document_set_version: Number(version),
-                  });
-                }, "Requirements assigned at the selected version.")
-              }
-            >
-              Assign document set
-            </Button>
-          </div>
-        </div>
-      </ApplicationCard>
+      <CaseCreation personUid={personUid} onCreated={() => refresh()} />
       {assignments.map((a) => (
         <AssignmentCard
           key={a.uid}
@@ -608,8 +569,8 @@ function Requirements({
       ))}
       {!assignments.length && (
         <Notice>
-          No document sets assigned. Choose a published set to establish this
-          person's requirements.
+          No cases yet. Choose a business case type and a permitted Document Set
+          to create one.
         </Notice>
       )}
     </ApplicationPageStack>
@@ -630,7 +591,7 @@ function AssignmentCard({
   refresh: () => void;
 }) {
   const loaded = useLoad(
-    (signal) => api.get(`/assignments/${assignment.uid}`, signal),
+    (signal) => api.get(`/cases/${assignment.uid}`, signal),
     [assignment.uid, assignment.revision],
   );
   const [selected, setSelected] = useState<readonly string[]>([]);
@@ -639,7 +600,9 @@ function AssignmentCard({
   }, [loaded.data]);
   const action = useAction(refresh);
   const policy = catalog.sets.find(
-    (s) => s.key === assignment.set_key && s.version === assignment.set_version,
+    (s) =>
+      s.key === assignment.document_set_key &&
+      s.version === assignment.document_set_version,
   );
   if (!loaded.data || loaded.error) return <Loading error={loaded.error} />;
   const item = loaded.data;
@@ -647,19 +610,25 @@ function AssignmentCard({
     <ApplicationCard
       header={
         <div className="actions">
-          <h2>{policy?.name ?? human(item.set_key)}</h2>
-          <Badge>Version {item.set_version}</Badge>
-          <Badge>Assignment revision {item.revision}</Badge>
+          <h2>{item.case_type.name}</h2>
+          <span>{policy?.name ?? human(item.document_set_key)}</span>
+          <Badge>Document Set v{item.document_set_version}</Badge>
+          <Badge>Case revision {item.revision}</Badge>
         </div>
       }
     >
       <div className="form-stack">
         <p className="muted">
-          This assignment stays pinned to the selected policy version. Add the
+          This case stays pinned to the selected policy version. Add the
           evidence that should be evaluated for this case.
         </p>
-        <Button onClick={() => navigate(`/review/${assignment.uid}`)}>Open review workspace</Button>
-        <CurrentRequirements key={assignment.revision} assignmentUid={assignment.uid} />
+        <Button onClick={() => navigate(`/review/${assignment.uid}`)}>
+          Open review workspace
+        </Button>
+        <CurrentRequirements
+          key={assignment.revision}
+          assignmentUid={assignment.uid}
+        />
         <Field label="Evidence documents">
           <ResourcePicker
             ariaLabel="Evidence documents"
@@ -687,14 +656,14 @@ function AssignmentCard({
               void action.run(
                 () =>
                   api.command(
-                    `/assignments/${item.uid}/documents`,
+                    `/cases/${item.uid}/documents`,
                     {
                       expected_revision: item.revision,
                       document_uids: selected,
                     },
                     "PUT",
                   ),
-                "Evidence linked to assignment.",
+                "Evidence linked to case.",
               )
             }
           >
@@ -705,20 +674,24 @@ function AssignmentCard({
             pending={action.pending}
             onClick={() =>
               void action.run(async () => {
-                const current = await api.get(`/assignments/${item.uid}`);
+                const current = await api.get(`/cases/${item.uid}`);
                 const result = await api.command(
-                  `/assignments/${item.uid}/evaluations`,
+                  `/cases/${item.uid}/evaluations`,
                   { expected_revision: current.revision },
                 );
-                navigate(
-                  evaluationPath(personUid, current.uid, result),
-                );
+                navigate(evaluationPath(personUid, current.uid, result));
               })
             }
           >
             Evaluate requirements
           </Button>
-          <Button onClick={() => navigate(`/document-sets/${item.set_key}?version=${item.set_version}`)}>
+          <Button
+            onClick={() =>
+              navigate(
+                `/document-sets/${item.document_set_key}?version=${item.document_set_version}`,
+              )
+            }
+          >
             View requirements
           </Button>
         </div>
@@ -1247,7 +1220,7 @@ export function Reconciliation({
   const loaded = useLoad(
     async (signal) =>
       personUid
-        ? ((await api.get(`/persons/${personUid}/assignments`, signal))
+        ? ((await api.get(`/persons/${personUid}/cases`, signal))
             .items as Row[])
         : [],
     [personUid],
@@ -1259,7 +1232,7 @@ export function Reconciliation({
   const evaluations = useLoad(
     async (signal) =>
       assignmentUid
-        ? ((await api.get(`/assignments/${assignmentUid}/evaluations`, signal))
+        ? ((await api.get(`/cases/${assignmentUid}/evaluations`, signal))
             .items as Row[])
         : [],
     [assignmentUid],
@@ -1282,9 +1255,9 @@ export function Reconciliation({
   const selected = loaded.data?.find((a) => a.uid === assignmentUid);
   const run = () =>
     action.run(async () => {
-      const current = await api.get(`/assignments/${assignmentUid}`);
+      const current = await api.get(`/cases/${assignmentUid}`);
       const result = await api.command(
-        `/assignments/${assignmentUid}/evaluations`,
+        `/cases/${assignmentUid}/evaluations`,
         { expected_revision: current.revision },
       );
       navigate(evaluationPath(personUid, current.uid, result));
@@ -1336,27 +1309,26 @@ export function Reconciliation({
         <Loading error={loaded.error} />
       ) : !loaded.data?.length ? (
         <ApplicationCard>
-          <p>This person has no document requirements assigned.</p>
+          <p>This subject has no cases yet.</p>
           <Button
             onClick={() => navigate(`/persons/${personUid}?tab=requirements`)}
           >
-            Assign document requirements
+            Create a case
           </Button>
         </ApplicationCard>
       ) : (
         <>
           <div className="actions">
-            <Field label="Assignment">
+            <Field label="Case">
               <ResourcePicker
-                ariaLabel="Assignment"
+                ariaLabel="Case"
                 value={assignmentUid}
                 onValueChange={(uid) => navigate(`/reconciliation?person=${personUid}&assignment=${uid}`)}
                 options={loaded.data.map((a) => ({
                   value: a.uid,
-                  label:
-                    catalog.sets.find((s) => s.key === a.set_key)?.name ??
-                    human(a.set_key),
-                  meta: `Version ${a.set_version}`,
+                  label: a.case_type.name,
+                  subtitle: catalog.sets.find((s) => s.key === a.document_set_key && s.version === a.document_set_version)?.name ?? human(a.document_set_key),
+                  meta: `Document Set v${a.document_set_version}`,
                 }))}
               />
             </Field>

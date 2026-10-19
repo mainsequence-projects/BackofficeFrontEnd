@@ -88,7 +88,9 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [responsibility, setResponsibility] = useState("all");
-  const [policy, setPolicy] = useState("");
+  const [caseType, setCaseType] = useState("");
+  const [creating, setCreating] = useState(false);
+  const caseTypes = useLoad((signal) => api.get("/case-types", signal), []);
   const [offset, setOffset] = useState(0);
   const [filter, setFilter] = useState("all");
   useEffect(() => {
@@ -101,10 +103,10 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
   const loaded = useLoad(
     (signal) =>
       api.get(
-        `/review-queue?${new URLSearchParams({ search: query, responsibility, set_key: policy, offset: String(offset), limit: "10" })}`,
+        `/cases?${new URLSearchParams({ search: query, responsibility, case_type_key: caseType, offset: String(offset), limit: "10" })}`,
         signal,
       ),
-    [query, responsibility, policy, offset],
+    [query, responsibility, caseType, offset],
   );
   const rows: Row[] = loaded.data?.items ?? [];
   const count = (state: string) =>
@@ -136,11 +138,16 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
         </div>
         <div className="actions">
           <Button onClick={loaded.refresh}>Refresh queue</Button>
-          <Button variant="primary" onClick={() => navigate("/persons/new")}>
-            New subject
+          <Button onClick={() => navigate("/persons/new")}>New subject</Button>
+          <Button variant="primary" onClick={() => setCreating(!creating)}>
+            {creating ? "Cancel new case" : "New case"}
           </Button>
         </div>
       </header>
+      {creating && (
+        <CaseCreation onCreated={(caseUid) => navigate(`/review/${caseUid}`)} />
+      )}
+      {caseTypes.error && <Notice error>{caseTypes.error}</Notice>}
       <div className="case-toolbar">
         <Input
           aria-label="Search case subjects"
@@ -162,17 +169,18 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
           ]}
         />
         <ResourcePicker
-          ariaLabel="Case workflow"
-          value={policy}
+          ariaLabel="Case type"
+          value={caseType}
           onValueChange={(v) => {
-            setPolicy(v);
+            setCaseType(v);
             setOffset(0);
           }}
           options={[
-            { value: "", label: "All workflows" },
-            ...[...new Map(catalog.sets.map((s) => [s.key, s])).values()].map(
-              (s) => ({ value: s.key, label: s.name }),
-            ),
+            { value: "", label: "All case types" },
+            ...(caseTypes.data?.items ?? []).map((type: Row) => ({
+              value: type.key,
+              label: type.name,
+            })),
           ]}
         />
       </div>
@@ -231,7 +239,7 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
                   <thead>
                     <tr>
                       <th>Case / Subject</th>
-                      <th>Workflow</th>
+                      <th>Case type / Document Set</th>
                       <th>Docs</th>
                       <th>Checks</th>
                       <th>Issues</th>
@@ -256,12 +264,16 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
                           </small>
                         </td>
                         <td>
+                          <strong>
+                            {row.case_type?.name ?? human(row.case_type_key)}
+                          </strong>
+                          <br />
                           {catalog.sets.find(
                             (s) =>
                               s.key === row.set_key &&
                               s.version === row.set_version,
                           )?.name ?? human(row.set_key)}
-                          <small>Policy v{row.set_version}</small>
+                          <small>Document Set v{row.set_version}</small>
                         </td>
                         <td>{row.document_count ?? "—"}</td>
                         <td>
@@ -318,7 +330,7 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
                 <div className="case-empty">
                   {rows.length
                     ? "No cases match this page filter."
-                    : "No matching cases. Assign a published document set to a subject to create a case."}
+                    : "No matching cases. Create a case by choosing a subject, business type and Document Set version."}
                   <Button onClick={() => navigate("/persons")}>
                     Open subjects
                   </Button>
@@ -418,7 +430,7 @@ export function CaseWorkspace({
   catalog: Catalog;
 }) {
   const loaded = useLoad(
-    (signal) => api.get(`/assignments/${uid}/workspace`, signal),
+    (signal) => api.get(`/cases/${uid}/workspace`, signal),
     [uid, runUid],
   );
   const [selected, setSelected] = useState("");
@@ -496,8 +508,8 @@ export function CaseWorkspace({
     setFocus(fact);
   }
   async function evaluate() {
-    const current = await api.get(`/assignments/${uid}`);
-    const response = await api.command(`/assignments/${uid}/evaluations`, {
+    const current = await api.get(`/cases/${uid}`);
+    const response = await api.command(`/cases/${uid}/evaluations`, {
       expected_revision: current.revision,
     });
     if (response.processing_run_uid)
@@ -513,8 +525,8 @@ export function CaseWorkspace({
             ← Case queue
           </button>
           <p className="case-eyebrow">
-            {data.policy.name} · Case {shortId(uid)} · Policy v
-            {data.assignment.set_version}
+            {data.case.case_type.name} · Case {shortId(uid)} ·{" "}
+            {data.policy.name} v{data.assignment.set_version}
           </p>
           <h1>{data.subject.full_name || "Unnamed subject"}</h1>
           <p className="muted">
@@ -590,7 +602,7 @@ export function CaseWorkspace({
               void action.run(
                 () =>
                   api.command(
-                    `/assignments/${uid}/reviewers/me`,
+                    `/cases/${uid}/reviewers/me`,
                     {
                       expected_revision: data.reviewers.my_revision,
                       assigned: !data.reviewers.assigned_to_me,
@@ -1135,5 +1147,137 @@ function CaseReport({ data }: { data: Row }) {
         approval and is not a signed protocol.
       </p>
     </main>
+  );
+}
+
+export function CaseCreation({
+  personUid,
+  onCreated,
+}: {
+  personUid?: string;
+  onCreated: (uid: string) => void;
+}) {
+  const types = useLoad((signal) => api.get("/case-types", signal), []);
+  const [subject, setSubject] = useState(personUid ?? "");
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [caseType, setCaseType] = useState("");
+  const [policy, setPolicy] = useState("");
+  const action = useAction();
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const subjects = useLoad(
+    (signal) =>
+      personUid
+        ? Promise.resolve({ items: [] })
+        : api.get(
+            `/persons?${new URLSearchParams({ search: query, limit: "20", offset: "0" })}`,
+            signal,
+          ),
+    [query, personUid],
+  );
+  const chosen = types.data?.items.find((t: Row) => t.key === caseType);
+  const policies: Row[] = chosen?.document_sets ?? [];
+  return (
+    <Panel title="Create a case">
+      <form
+        className="case-panel-copy form-stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!subject || !caseType || !policy) return;
+          void action.run(async () => {
+            const selected = policies.find(
+              (p) => `${p.key}@${p.version}` === policy,
+            );
+            if (!selected)
+              throw new Error("Choose a permitted Document Set version.");
+            const result = await api.command("/cases", {
+              subject_uid: subject,
+              case_type_key: caseType,
+              document_set_key: selected.key,
+              document_set_version: selected.version,
+            });
+            onCreated(result.uid);
+          }, "Case created with its pinned Document Set.");
+        }}
+      >
+        <p>
+          Choose the business process first, then its exact Document Set
+          version. Evidence can be added afterward.
+        </p>
+        {types.error && <Notice error>{types.error}</Notice>}
+        {subjects.error && <Notice error>{subjects.error}</Notice>}
+        <div className="field-grid">
+          {!personUid && (
+            <Field label="Case subject" required>
+              <ResourcePicker
+                ariaLabel="Case subject"
+                searchable
+                searchPlaceholder="Search subjects by name or reference"
+                onSearchValueChange={setSearch}
+                value={subject}
+                onValueChange={setSubject}
+                loading={subjects.loading}
+                placeholder="Choose a subject"
+                options={(subjects.data?.items ?? []).map((p: Row) => ({
+                  value: p.uid,
+                  label: p.full_name || "Unnamed subject",
+                  subtitle: p.external_reference || p.uid,
+                }))}
+              />
+            </Field>
+          )}
+          <Field label="Case type" required>
+            <ResourcePicker
+              ariaLabel="New case type"
+              value={caseType}
+              onValueChange={(value) => {
+                setCaseType(value);
+                setPolicy("");
+              }}
+              loading={types.loading}
+              placeholder="Choose the business process"
+              options={(types.data?.items ?? []).map((t: Row) => ({
+                value: t.key,
+                label: t.name,
+                subtitle: t.description,
+              }))}
+            />
+          </Field>
+          <Field label="Document Set version" required>
+            <ResourcePicker
+              ariaLabel="Document Set version"
+              value={policy}
+              onValueChange={setPolicy}
+              disabled={!caseType}
+              placeholder="Choose a permitted version"
+              options={policies.map((p) => ({
+                value: `${p.key}@${p.version}`,
+                label: `${p.name} · v${p.version}`,
+                meta: `Version ${p.version}`,
+              }))}
+            />
+          </Field>
+        </div>
+        {chosen && !policies.length && (
+          <Notice>
+            This case type has no published Document Set available for creation.
+          </Notice>
+        )}
+        {action.feedback}
+        <div className="actions">
+          <Button
+            type="submit"
+            variant="primary"
+            pending={action.pending}
+            disabled={!subject || !caseType || !policy}
+          >
+            Create case
+          </Button>
+        </div>
+      </form>
+    </Panel>
   );
 }
