@@ -14,6 +14,7 @@ import {
 } from "@dev-mainsequence/command-center-sdk/theme";
 import { api, ApiError, errorText, type Catalog } from "./api";
 import { AssistantWorkspace } from "./assistant/Assistant";
+import { CaseQueue, CaseWorkspace } from "./CaseDashboard";
 import { Admin } from "./Admin";
 import {
   People,
@@ -25,9 +26,10 @@ import {
 } from "./pages";
 
 const destinations = [
+  { id: "queue", label: "Cases", href: "/queue", description: "Review queue, subjects and assigned staff" },
   {
     id: "persons",
-    label: "People",
+    label: "Subjects",
     href: "/persons",
     description: "Reference profiles and document cases",
   },
@@ -60,7 +62,7 @@ const destinations = [
 function applicationNavigation(isAdmin: boolean) { return defineNavigationApplication({
   id: "backoffice",
   label: "Back Office",
-  defaultDestinationId: "persons",
+  defaultDestinationId: "queue",
   subApplications: [{ id: "casework", label: "Back Office", destinations: destinations.filter((item) => item.id !== "admin" || isAdmin) }],
 }); }
 const connectionMessages: Record<string, string> = {
@@ -285,11 +287,15 @@ export default function App() {
       />
     );
   const url = new URL(path, location.origin);
-  const [section = "persons", uid] = url.pathname.slice(1).split("/");
+  const [section = "queue", uid] = url.pathname.slice(1).split("/").filter(Boolean);
   const tab = url.searchParams.get("tab") ?? undefined;
   const allowedDestinations = destinations.filter((item) => item.id !== "admin" || catalog.viewer.is_organization_admin === true);
   const page =
-    section === "persons" ? (
+    section === "queue" ? (
+      <CaseQueue catalog={catalog} />
+    ) : section === "review" && uid ? (
+      <CaseWorkspace key={uid} uid={uid} catalog={catalog} runUid={url.searchParams.get("run") ?? ""} report={url.searchParams.get("view") === "report"} />
+    ) : section === "persons" ? (
       uid ? (
         <PersonPage key={uid} uid={uid} tab={tab} catalog={catalog} />
       ) : (
@@ -330,7 +336,7 @@ export default function App() {
     <ApplicationNavigationPanelShell
       application={applicationNavigation(catalog.viewer.is_organization_admin === true)}
       activeDestinationId={
-        allowedDestinations.some((d) => d.id === section) ? section : "persons"
+        section === "review" ? "queue" : allowedDestinations.some((d) => d.id === section) ? section : "queue"
       }
       menuOpen={menu}
       onMenuOpenChange={setMenu}

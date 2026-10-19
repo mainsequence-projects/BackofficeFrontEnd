@@ -8,8 +8,13 @@ const sidebars = {
     },
     {
       "type": "doc",
+      "id": "queue/index",
+      "label": "Cases"
+    },
+    {
+      "type": "doc",
       "id": "persons/index",
-      "label": "People"
+      "label": "Subjects"
     },
     {
       "type": "doc",

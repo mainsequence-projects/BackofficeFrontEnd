@@ -25,10 +25,12 @@ export function ProcessingRun({
   uid,
   personUid,
   comparison = false,
+  onOpenResult,
 }: {
   uid: string;
   personUid: string;
   comparison?: boolean;
+  onOpenResult?: () => void;
 }) {
   const [row, setRow] = useState<Row>();
   const [error, setError] = useState("");
@@ -95,7 +97,7 @@ export function ProcessingRun({
                 <Button
                   variant="primary"
                   onClick={() =>
-                    navigate(
+                    onOpenResult ? onOpenResult() : navigate(
                       comparison
                         ? evaluationPath(
                             personUid,

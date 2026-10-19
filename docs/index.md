@@ -16,7 +16,8 @@ can also inspect cases and record document decisions.
 
 ## Find a feature
 
-- [People](persons/index.md): create reference profiles and assign requirements.
+- [Cases](queue/index.md): triage the review queue and inspect cited findings.
+- [Subjects](persons/index.md): create reference profiles and assign requirements.
 - [Documents](documents/index.md): upload evidence, complete attributes, and review revisions.
 - [Document Sets](document-sets/index.md): inspect published requirements and accepted alternatives.
 - [Reconciliation](reconciliation/index.md): evaluate a case and follow its findings.

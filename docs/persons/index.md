@@ -1,18 +1,19 @@
 ---
-title: People
+title: Subjects
 description: Maintain reference profiles, assign document requirements, and open a person's evidence.
 audience: end-user
 pageType: feature
 ---
 
-# People
+# Subjects
 
 Keep the reference details used to compare a person's documents and establish
-which evidence requirements apply to their case.
+which evidence requirements apply to their case. These subjects are distinct from
+staff reviewers who take responsibility for cases.
 
 ## Open this page
 
-Choose **People** in Back Office. You can see your own cases. Authorized
+Choose **Subjects** in Back Office. You can see your own cases. Authorized
 reviewers can also open cases that need review.
 
 ## What you can do
@@ -32,7 +33,7 @@ published document set, select evidence, and inspect recorded case activity.
    **Add selected evidence**. Then choose **Evaluate requirements** to see findings.
 
 On **Profile**, use **Save profile** after editing. **Activity** shows recorded
-changes. Use the People list's search and refresh controls to find a case.
+changes. Use the Subjects list's search and refresh controls to find a case.
 
 ## Understand what you see
 

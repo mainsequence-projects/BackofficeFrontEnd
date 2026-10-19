@@ -30,6 +30,7 @@ function recordContext(path: string) {
   const [section, id] = url.pathname.slice(1).split("/");
   const refs: Record<string, string> = {};
   if (section === "persons" && id) refs.person_uid = id;
+  if (section === "review" && id) refs.assignment_uid = id;
   if (section === "documents" && id) {
     refs.document_uid = id;
     if (url.searchParams.has("revision")) refs.document_revision = url.searchParams.get("revision")!;

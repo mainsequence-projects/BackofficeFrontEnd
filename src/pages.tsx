@@ -658,6 +658,7 @@ function AssignmentCard({
           This assignment stays pinned to the selected policy version. Add the
           evidence that should be evaluated for this case.
         </p>
+        <Button onClick={() => navigate(`/review/${assignment.uid}`)}>Open review workspace</Button>
         <CurrentRequirements key={assignment.revision} assignmentUid={assignment.uid} />
         <Field label="Evidence documents">
           <ResourcePicker

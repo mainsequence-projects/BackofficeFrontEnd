@@ -5,11 +5,47 @@
     "label": "User guide"
   },
   "navigation": [
-    {"id":"persons","label":"People","kind":"feature","applicationRoute":"/persons"},
-    {"id":"documents","label":"Documents","kind":"feature","applicationRoute":"/documents"},
-    {"id":"document-sets","label":"Document Sets","kind":"feature","applicationRoute":"/document-sets"},
-    {"id":"reconciliation","label":"Reconciliation","kind":"feature","applicationRoute":"/reconciliation"},
-    {"id":"agent","label":"Agent","kind":"feature","applicationRoute":"/agent"},
-    {"id":"admin","label":"Admin","kind":"feature","applicationRoute":"/admin"}
+    {
+      "id": "queue",
+      "label": "Cases",
+      "kind": "feature",
+      "applicationRoute": "/queue"
+    },
+    {
+      "id": "persons",
+      "label": "Subjects",
+      "kind": "feature",
+      "applicationRoute": "/persons"
+    },
+    {
+      "id": "documents",
+      "label": "Documents",
+      "kind": "feature",
+      "applicationRoute": "/documents"
+    },
+    {
+      "id": "document-sets",
+      "label": "Document Sets",
+      "kind": "feature",
+      "applicationRoute": "/document-sets"
+    },
+    {
+      "id": "reconciliation",
+      "label": "Reconciliation",
+      "kind": "feature",
+      "applicationRoute": "/reconciliation"
+    },
+    {
+      "id": "agent",
+      "label": "Agent",
+      "kind": "feature",
+      "applicationRoute": "/agent"
+    },
+    {
+      "id": "admin",
+      "label": "Admin",
+      "kind": "feature",
+      "applicationRoute": "/admin"
+    }
   ]
 }

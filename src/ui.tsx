@@ -180,7 +180,7 @@ export function SourcePreview({ uid, page = 1, expectedSha256 }: { uid: string; 
     setUrl(next);
     return () => URL.revokeObjectURL(next);
   }, [result.data]);
-  if (!result.data || result.loading || result.error)
+  if (!result.data || result.loading || result.error || !url)
     return <Loading error={result.error} />;
   const { source, text } = result.data;
   return (

@@ -3,7 +3,8 @@
 This map and the Docusaurus sidebar are generated from `documentation/navigation.json`.
 
 - [User guide](index.md)
-- [People](persons/index.md)
+- [Cases](queue/index.md)
+- [Subjects](persons/index.md)
 - [Documents](documents/index.md)
 - [Document Sets](document-sets/index.md)
 - [Reconciliation](reconciliation/index.md)
