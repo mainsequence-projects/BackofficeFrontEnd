@@ -148,6 +148,8 @@ await page.route("**/api/**", async (route) => {
       ],
     };
   else if (path === "/document-sets") result = { items: policies };
+  else if (path.startsWith("/document-sets/")) result = policies.find((item) => path === `/document-sets/${item.key}/versions/${item.version}`);
+  else if (path === "/case-types") result = { items: [{ key: "document_review", name: "Document review", document_sets: policies.map((item) => ({key:item.key,version:item.version})) }] };
   else if (path === "/persons")
     result = {
       items: [{ uid: person, full_name: "Synthetic comparison case" }],
@@ -274,6 +276,16 @@ await page.route("**/api/**", async (route) => {
         extraction: {
           pages: [{ source_file: "source.pdf", page: 1, source_sha256: sha }],
           field_evidence: [
+            {
+              pointer: "/portrait_reference/raw_document_uid",
+              agreement: "single_reader",
+              candidates: [],
+            },
+            {
+              pointer: "/portrait_reference/page_number",
+              agreement: "single_reader",
+              candidates: [{ reader_id: "primary", value: "Legacy portrait locator", locations: [] }],
+            },
             {
               pointer: "/full_name",
               agreement: "single_reader",
@@ -442,7 +454,7 @@ try {
     `${origin}/document-sets/${policy.key}?version=${policy.version}`,
   );
   await page
-    .getByRole("heading", { name: "Cross-document checks", exact: true })
+    .getByRole("heading", { name: /^Cross-document checks/ })
     .waitFor();
   // An existing verified source uses Back Office's processing endpoint.
   await page.goto(`${origin}/documents?person=${person}`);
@@ -460,6 +472,8 @@ try {
   await page
     .getByRole("cell", { name: "Synthetic Name", exact: true })
     .waitFor();
+  assert.equal(await page.getByText(/portrait reference/i).count(), 0);
+  assert.equal(await page.getByText("Legacy portrait locator", { exact: true }).count(), 0);
   await page.getByRole("button", { name: "Page 1", exact: true }).click();
   await page
     .getByText("Synthetic cited source content", { exact: true })

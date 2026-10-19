@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { documentFieldInV1 } from "./DocumentScope";
 import { Button, Badge } from "@dev-mainsequence/command-center-sdk/controls";
 import { ApplicationCard } from "@dev-mainsequence/command-center-sdk/layout";
 import { api, human, type Row } from "./api";
@@ -216,6 +217,8 @@ export function ExtractionEvidence({
   );
   const [source, setSource] = useState<Row>();
   const evidence = loaded.data?.evidence;
+  const visibleFields: Row[] = (evidence?.extraction.field_evidence ?? [])
+    .filter((field: Row) => documentFieldInV1(field.pointer));
   return (
     <ApplicationCard
       className="evidence-card"
@@ -234,7 +237,7 @@ export function ExtractionEvidence({
             Reader observations are retained with this exact revision. Review
             decisions remain in Back Office.
           </p>
-          {evidence.extraction.field_evidence
+          {visibleFields
             .filter((field: Row) => !field.candidates.length)
             .map((field: Row) => (
               <Notice key={field.pointer}>
@@ -255,7 +258,7 @@ export function ExtractionEvidence({
                 </tr>
               </thead>
               <tbody>
-                {evidence.extraction.field_evidence.flatMap((field: Row) =>
+                {visibleFields.flatMap((field: Row) =>
                   field.candidates.map((candidate: Row) => (
                     <tr key={`${field.pointer}:${candidate.reader_id}`}>
                       <td>{evidenceFieldLabel(field.pointer)}</td>

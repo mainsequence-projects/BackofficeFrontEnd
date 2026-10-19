@@ -32,21 +32,20 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 page.setDefaultTimeout(60_000);
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
+let activePolicy;
 async function choose(kind) {
-  await page.getByLabel("Document type", { exact: true }).click();
-  const name = types.find((type) => type.document_type === kind).name;
-  await page.getByRole("option", { name: new RegExp(name, "i") }).click();
-  await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).waitFor();
+  activePolicy = page.locator(`[data-document-type="${kind}"]`);
+  await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).waitFor();
 }
 async function enableAndSave(value) {
-  const toggle = page.getByRole("button", { name: "Automatic acceptance", exact: true });
+  const toggle = activePolicy.getByRole("button", { name: "Automatic acceptance", exact: true });
   if (await toggle.getAttribute("aria-pressed") !== "true") await toggle.click();
-  await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).fill(value);
-  await page.getByRole("button", { name: "Save parsing settings", exact: true }).click();
-  await page.getByText("Parsing settings saved.", { exact: true }).waitFor();
-  // Refresh after the write must finish before another type is selected.
-  await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).waitFor();
-  assert.equal(await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), Number(value).toFixed(2));
+  await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).fill(value);
+  await activePolicy.getByRole("button", { name: "Save parsing settings", exact: true }).click();
+  await activePolicy.getByText("Parsing settings saved.", { exact: true }).waitFor();
+  // The saved card refreshes without disturbing other cards.
+  await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).waitFor();
+  assert.equal(await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), Number(value).toFixed(2));
 }
 
 try {
@@ -55,6 +54,7 @@ try {
   await page.getByRole("heading", { name: "Admin", exact: true }).waitFor();
   await page.getByRole("link", { name: "Admin", exact: true }).waitFor();
   await choose("passport");
+  assert.equal(await page.locator("[data-document-type]").count(), types.length);
   await enableAndSave("60");
   const first = await policy("passport");
   assert.equal(first.document_type, "passport");
@@ -67,19 +67,19 @@ try {
   await enableAndSave("90");
   const billPolicy = await policy("utility_bill");
   await choose("passport");
-  assert.equal(await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), "60.00");
+  assert.equal(await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), "60.00");
   await page.reload();
   await choose("passport");
-  assert.equal(await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), "60.00");
+  assert.equal(await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), "60.00");
 
   // Another administrator changes this type after the form loaded.
   await call("/admin/parsing-settings", { document_type: "passport", expected_revision: first.revision, automatic_acceptance_enabled: true, acceptance_threshold_percent: "65.00" }, "PUT");
-  await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).fill("61");
-  await page.getByRole("button", { name: "Save parsing settings", exact: true }).click();
-  await page.getByRole("button", { name: "Reload saved settings", exact: true }).waitFor();
-  assert.equal(await page.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), "61");
-  await page.getByRole("button", { name: "Reload saved settings", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector("#parsing-threshold")?.value === "65.00");
+  await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).fill("61");
+  await activePolicy.getByRole("button", { name: "Save parsing settings", exact: true }).click();
+  await activePolicy.getByRole("button", { name: "Reload saved settings", exact: true }).waitFor();
+  assert.equal(await activePolicy.getByRole("spinbutton", { name: /^Acceptance threshold/ }).inputValue(), "61");
+  await activePolicy.getByRole("button", { name: "Reload saved settings", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("#parsing-threshold-passport")?.value === "65.00");
   await enableAndSave("60");
   assert.deepEqual(await policy("utility_bill"), billPolicy, "Changing passport policy must not change utility bill policy.");
   console.log("Independent policies, reload and concurrent update recovery passed.");

@@ -85,6 +85,8 @@ class LocalStackTests(unittest.TestCase):
         inherited = {
             "MAINSEQUENCE_ENDPOINT": "http://platform.invalid",
             "TAU_EXCLUDE_BASE_TOOLS": "false",
+            "BACKOFFICE_API_ORIGIN": "http://127.0.0.1:28641",
+            "BACKOFFICE_LOCAL_SOURCE_UID": "test-source",
         }
         result = stack.tau_environment(backend, args, inherited)
         self.assertEqual(result["TAU_LOCAL_MODE"], "true")
@@ -96,6 +98,11 @@ class LocalStackTests(unittest.TestCase):
         self.assertEqual(result["TAU_EXCLUDE_BASE_TOOLS"], "true")
         self.assertEqual(result["TAU_EXCLUDE_MAINSEQUENCE_MCP"], "true")
         self.assertEqual(result["TAU_LOCAL_MODEL"], "configured-model")
+        self.assertEqual(result["BACKOFFICE_LOCAL_MCP_ENABLED"], "true")
+        self.assertEqual(result["BACKOFFICE_API_ORIGIN"], inherited["BACKOFFICE_API_ORIGIN"])
+        self.assertEqual(
+            result["BACKOFFICE_LOCAL_SOURCE_UID"], inherited["BACKOFFICE_LOCAL_SOURCE_UID"]
+        )
         self.assertEqual(inherited["TAU_EXCLUDE_BASE_TOOLS"], "false")
 
     def test_agent_readiness_requires_the_restricted_local_runtime(self):

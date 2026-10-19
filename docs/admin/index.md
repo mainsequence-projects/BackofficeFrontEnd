@@ -17,16 +17,17 @@ to organization administrators. Reviewer access alone does not grant access.
 
 ## What you can do
 
-Choose a **Document type**, enable or disable **Automatic acceptance**, set its
-**Acceptance threshold (%)**, and save a new policy version.
+See every document type and its parsing policy in a single list. Each row shows
+**Automatic acceptance**, its **Acceptance threshold (%)**, the resulting rule,
+and the saved policy version or **Default · On at 80%**. Edit and save each type independently.
 
 ## Common tasks
 
-1. Choose **Document type**, then choose **Automatic acceptance on**.
+1. Find the document type's row and turn **Automatic acceptance** on.
 2. Enter **Acceptance threshold (%)**, from 0 to 100 with up to two decimal places.
-3. Select **Save parsing settings** and wait for **Parsing settings saved.**
-4. To require human review for all new parsing results of this type, choose
-   **Automatic acceptance off** and save again.
+3. Select **Save** in that row and wait for **Parsing settings saved.**
+4. To require human review for all new parsing results of this type,
+   turn **Automatic acceptance** off and save again.
 
 ## Understand what you see
 
@@ -38,10 +39,13 @@ sends a 59.99% score for review. Required attributes and source evidence must al
 validation. Missing scores, incomplete attributes and missing evidence need review
 regardless of the score. Existing review decisions are never overwritten by parsing.
 
-Automatic acceptance starts off for each type until an administrator configures
-its policy. A passport policy does not apply to any other type. Save changes
-before switching types; switching loads that type's saved settings. Each save
-creates a new policy version for the selected type. Changes apply to later parsing completions; previous
+Automatic acceptance defaults to **On at 80%** for every document type. The default
+is active without saving each row. The first parsing completion using it records a
+policy version for that type. An administrator can save a different threshold or
+turn automatic acceptance off for an individual type. A passport override does
+not apply to any other type. **Unsaved changes**
+identifies rows you have edited. Saving one row preserves drafts in the others.
+Each save creates a new policy version for that type. Changes apply to later parsing completions; previous
 results keep their recorded policy and decision. The document's **Parsing result**
 shows its score, threshold, policy version and outcome when a result exists.
 

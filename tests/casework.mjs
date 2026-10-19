@@ -59,6 +59,7 @@ let policy = policies[0],
   memberRevision = 0,
   reviewed = false,
   canReview = true;
+let reviewBlocker = "low_score";
 let editRevision = 2,
   editedPayload,
   editingDraft = false,
@@ -81,6 +82,14 @@ const fieldSchema = {
       enum: ["current", "expired"],
     },
     note: { type: "string", title: "Note" },
+    portrait_reference: {
+      type: "object", title: "Portrait reference",
+      required: ["raw_document_uid", "page_number"],
+      properties: {
+        raw_document_uid: { type: "string", title: "Source document UID" },
+        page_number: { type: "integer", title: "Page number" },
+      },
+    },
     address: {
       type: "object",
       title: "Address",
@@ -166,9 +175,10 @@ function findings() {
     {
       uid: id(22),
       requirement_key: "income_document",
-      status: "pending_review",
+      status: reviewBlocker === "incomplete" ? "needs_information" : "pending_review",
+      reason_code: reviewBlocker === "incomplete" ? "REQUIRED_FIELD_MISSING" : reviewBlocker === "disagree" ? "EXTRACTION_READERS_DISAGREE" : "PARSING_SCORE_BELOW_THRESHOLD",
       mandatory: true,
-      explanation: "Review the submitted employer confirmation.",
+      explanation: reviewBlocker === "incomplete" ? "Employer confirmation is missing the required city." : reviewBlocker === "disagree" ? "The extraction readers disagree about the document's field values." : "Classification confidence is 65.00%, below the recorded 80.00% acceptance threshold.",
       document_references: [{ document_uid: right, revision: 2 }],
       next_action: "Inspect the income source.",
     },
@@ -195,13 +205,19 @@ function workspace() {
             address: null,
           },
     accepted: i === 0 || (reviewed && !editingDraft),
+    parsing_result: { parsing_score_percent: "65.00", acceptance_threshold_percent: "80.00", reason_code: "parsing_score_below_threshold" },
+    review_requirement: i && !reviewed ? {
+      status: "pending_review", reason_code: reviewBlocker === "disagree" ? "EXTRACTION_READERS_DISAGREE" : "PARSING_SCORE_BELOW_THRESHOLD",
+      explanation: reviewBlocker === "disagree" ? "The extraction readers disagree about the document's field values." : "Classification confidence is 65.00%, below the recorded 80.00% acceptance threshold.",
+      next_action: "An authorized reviewer must verify this revision and accept or reject it.",
+    } : null,
     review_status:
       i === 0 || (reviewed && !editingDraft) ? "accepted" : "pending",
     latest_review:
       i === 0
         ? { decision_sequence: 1, reason: "Verified source." }
         : reviewed
-          ? { decision_sequence: 1, reason: "Checked cited source." }
+          ? { decision_sequence: 1, reason: "" }
           : null,
     raw_document_refs: [{ raw_document_uid: citation(uid).source_id }],
     evidence_summary: {
@@ -432,7 +448,8 @@ async function mockApi(route) {
     const body = req.postDataJSON();
     assert.equal(body.expected_revision, 2);
     assert.equal(body.expected_decision_sequence, 0);
-    assert.equal(body.reason, "Checked cited source.");
+    assert.equal(body.comments, "");
+    assert.equal(body.reason, undefined);
     reviewed = true;
     result = { uid: id(44) };
     status = 201;
@@ -584,6 +601,26 @@ try {
     name: "Document fields",
     exact: true,
   });
+  assert.equal(await fields.getByRole("group", { name: "Portrait reference", exact: true }).count(), 0);
+  const documentSummary = page.locator(".case-document-summary");
+  await documentSummary.getByText("Human decision needed", { exact: true }).waitFor();
+  await documentSummary.getByText("Classification confidence is 65.00%, below the recorded 80.00% acceptance threshold.", { exact: true }).waitFor();
+  reviewBlocker = "incomplete";
+  await page.reload();
+  await page.getByRole("button", { name: "Inspect page 2", exact: true }).click();
+  await documentSummary.getByText("Evidence incomplete", { exact: true }).waitFor();
+  await documentSummary.getByText("Employer confirmation is missing the required city.", { exact: true }).waitFor();
+  assert.equal(await documentSummary.getByText("Human decision needed", { exact: true }).count(), 0);
+  await page.screenshot({ path: resolve(output, "missing-before-review.png"), fullPage: true });
+  reviewBlocker = "disagree";
+  await page.reload();
+  await page.getByRole("button", { name: "Inspect page 2", exact: true }).click();
+  await documentSummary.getByText("The extraction readers disagree about the document's field values.", { exact: true }).waitFor();
+  reviewBlocker = "low_score";
+  await page.reload();
+  await page.getByRole("button", { name: "Inspect page 2", exact: true }).click();
+  await documentSummary.getByText("Classification confidence is 65.00%, below the recorded 80.00% acceptance threshold.", { exact: true }).waitFor();
+  await page.screenshot({ path: resolve(output, "exact-review-reason.png"), fullPage: true });
   const issue = fields.getByLabel("Issue date", { exact: true });
   assert.equal(await issue.getAttribute("aria-invalid"), null);
   const missingBorder = await issue.evaluate((input) => ({
@@ -745,7 +782,10 @@ try {
       (size) => size.pointer === "fine",
     ),
   });
-  await page.getByLabel("Review reason").fill("Checked cited source.");
+  const comments = page.getByLabel("Review comments (optional)", { exact: true });
+  assert.equal(await comments.inputValue(), "");
+  assert.equal(await comments.getAttribute("required"), null);
+  assert(await page.getByRole("button", { name: "Accept revision", exact: true }).isEnabled());
   await page
     .getByRole("button", { name: "Accept revision", exact: true })
     .click();

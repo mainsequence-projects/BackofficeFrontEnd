@@ -5,6 +5,7 @@ import {
 } from "@dev-mainsequence/command-center-sdk/controls";
 import { ResourcePicker } from "@dev-mainsequence/command-center-sdk/views";
 import { human, type Schema } from "./api";
+import { documentFacts, documentFieldInV1 } from "./DocumentScope";
 
 function resolve(schema: Schema, root: Schema): Schema {
   if (schema.$ref)
@@ -54,6 +55,7 @@ export function SchemaForm({
         .filter(
           ([key, field]) =>
             !["uid", "revision", "document_type"].includes(key) &&
+            documentFieldInV1(key) &&
             field.const === undefined,
         )
         .map(([key, field]) => (
@@ -62,7 +64,7 @@ export function SchemaForm({
             schema={field}
             root={schema}
             value={value[key]}
-            onChange={(next) => onChange({ ...value, [key]: next })}
+            onChange={(next) => onChange(documentFacts({ ...value, [key]: next }))}
             required={schema.required?.includes(key)}
             disabled={disabled}
             path={`${prefix}.${key}`}
@@ -130,7 +132,7 @@ function SchemaField({
         </legend>
         {description && <p className="muted">{description}</p>}
         <div className="field-grid">
-          {Object.entries(field.properties ?? {}).map(([key, node]) => (
+          {Object.entries(field.properties ?? {}).filter(([key]) => documentFieldInV1(key)).map(([key, node]) => (
             <SchemaField
               key={key}
               schema={node}

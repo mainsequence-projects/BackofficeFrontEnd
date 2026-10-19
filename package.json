@@ -23,7 +23,10 @@
     "test:assistant:local": "node tests/assistant-local.mjs",
     "test:docs:local": "node tests/local-docs.mjs",
     "test:admin": "node tests/admin.mjs",
-    "test:comparisons": "node tests/comparisons.mjs"
+    "test:admin:overview": "node tests/admin-overview.mjs",
+    "test:comparisons": "node tests/comparisons.mjs",
+    "test:document-sets": "node tests/document-sets.mjs",
+    "test:document-sets:api": "node tests/document-sets-api.mjs"
   },
   "dependencies": {
     "@dev-mainsequence/command-center-ai": "0.0.16",

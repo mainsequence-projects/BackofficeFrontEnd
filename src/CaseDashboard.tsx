@@ -24,6 +24,7 @@ import { navigate } from "./App";
 import { ProcessingRun } from "./ProcessingRun";
 import { recordedTime } from "./DocumentDates";
 import { ComparisonPolicy } from "./ComparisonEvidence";
+import { DocumentReviewReason } from "./DocumentReviewReason";
 import { CaseDocumentFields } from "./CaseDocumentFields";
 import {
   ApplicationCard,
@@ -328,6 +329,7 @@ export function CaseQueue({ catalog }: { catalog: Catalog }) {
                             : row.error_code
                               ? "Refresh after the current change"
                               : "No outstanding findings"}
+                          {row.top_finding?.explanation && <small>{row.top_finding.explanation}</small>}
                           <small>
                             {row.latest_evaluated_at
                               ? `Retained ${recordedTime(row.latest_evaluated_at)}`
@@ -801,11 +803,7 @@ export function CaseWorkspace({
                       <div className="case-requirement-content">
                         {requirement.finding && (
                           <p className="case-requirement-finding">
-                            {requirement.finding.reason_code
-                              ? human(
-                                  requirement.finding.reason_code.toLowerCase(),
-                                )
-                              : requirement.finding.explanation}
+                            {requirement.finding.explanation}
                           </p>
                         )}
                         {requirement.documents.length ? (
@@ -1014,6 +1012,9 @@ export function CaseWorkspace({
                           Policy v{data.policy.version}
                         </span>
                       </div>
+                      <DocumentReviewReason document={doc} changed={fieldsDirty} finding={data.status.findings.find((finding: Row) =>
+                        ["missing", "needs_information"].includes(finding.status) && finding.document_references.some((ref: Row) => ref.document_uid === doc.uid && ref.revision === doc.revision)
+                      )} />
                       <div className="case-section-heading">
                         <div>
                           <p className="case-eyebrow">
@@ -1142,7 +1143,7 @@ export function CaseWorkspace({
                         !fieldsDirty &&
                         !fieldsPending ? (
                           <>
-                            <Field label="Review reason" required>
+                            <Field label="Review comments (optional)">
                               <Textarea
                                 rows={3}
                                 value={reason}
@@ -1161,7 +1162,6 @@ export function CaseWorkspace({
                                       ? "primary"
                                       : "danger"
                                   }
-                                  disabled={!reason.trim()}
                                   pending={action.pending}
                                   onClick={() =>
                                     void action.run(
@@ -1174,7 +1174,7 @@ export function CaseWorkspace({
                                               doc.latest_review
                                                 ?.decision_sequence ?? 0,
                                             decision,
-                                            reason,
+                                            comments: reason,
                                           },
                                         ),
                                       "Revision review recorded.",

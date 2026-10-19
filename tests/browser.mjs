@@ -178,7 +178,7 @@ try {
     await page.getByText("Document attributes", { exact: true }).waitFor();
     const schema = await request(`/document-types/${kind}/schema`);
     if (existing?.status !== "submitted") {
-      await setValues(page, schema.canonical_schema, data);
+      await setValues(page, schema.canonical_schema, data, schema.canonical_schema, page, "document");
       await page
         .getByRole("button", { name: "Submit for review", exact: true })
         .click();
@@ -188,7 +188,7 @@ try {
     }
     await page.getByRole("tab", { name: "Review", exact: true }).click();
     await page
-      .getByLabel(/^Review reason/)
+      .getByLabel(/^Review comments/)
       .fill(
         "Synthetic verification: attributes checked against the original source.",
       );

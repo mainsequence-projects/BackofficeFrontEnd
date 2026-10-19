@@ -300,6 +300,7 @@ def tau_environment(backend, args, environment):
         TAU_LOCAL_THINKING=args.agent_thinking,
         TAU_EXCLUDE_BASE_TOOLS="true",
         TAU_EXCLUDE_MAINSEQUENCE_MCP="true",
+        BACKOFFICE_LOCAL_MCP_ENABLED="true",
     )
 
 
@@ -611,7 +612,7 @@ def run(args):
                     str(args.agent_port),
                 ],
                 label="Agent",
-                env=tau_environment(backend, args, os.environ),
+                env=tau_environment(backend, args, backend_env),
             )
             wait_for(
                 lambda: local_agent_ready(agent_origin),

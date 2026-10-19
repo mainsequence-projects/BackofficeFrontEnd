@@ -33,13 +33,18 @@ drafts, submit a completed revision, and review its evidence.
    repeated entries, and other structured details.
 4. Select **Save draft revision** to retain incomplete work, or **Submit for
    review** when the required information is complete.
-5. An authorized reviewer opens **Review**, enters a **Review reason**, and
-   selects **Accept revision** or **Reject revision**. The recorded decision is shown.
+5. An authorized reviewer opens **Review** and selects **Accept revision** or
+   **Reject revision**. **Review comments** are optional; leaving them blank does
+   not prevent the decision from being submitted.
 
 Use **Download source** to retain a copy of the verified original. The same
 document can be linked to an assignment under the person's **Requirements** tab.
 
 ## Understand what you see
+
+Portrait references and face comparison are planned for V2 and are absent from
+V1 forms and completion requirements, including forms for older documents.
+Original source files remain available to read.
 
 Document attributes are editable inputs. Missing required values have a red border, which clears when you supply a value. Empty optional fields are yellow and labelled “Optional — not provided”; they do not prevent completion. You can save incomplete drafts; submission applies the document's required-field rules. The case review workspace provides the same editing controls under **Document fields**.
 

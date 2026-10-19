@@ -31,7 +31,9 @@ import {
   type Row,
   type Catalog,
 } from "./api";
+import { DocumentReviewReason } from "./DocumentReviewReason";
 import { SchemaForm } from "./SchemaForm";
+import { documentFacts } from "./DocumentScope";
 import { CurrentRequirements, EvidenceDates, recordedTime } from "./DocumentDates";
 import {
   Loading,
@@ -46,7 +48,7 @@ import {
 import { navigate } from "./App";
 import { CaseCreation } from "./CaseDashboard";
 import { ProcessingRun, evaluationPath } from "./ProcessingRun";
-import { ComparisonPolicy, ComparisonFindings, ExtractionEvidence } from "./ComparisonEvidence";
+import { ComparisonFindings, ExtractionEvidence } from "./ComparisonEvidence";
 
 function Page({ children }: { children: ReactNode }) {
   return (
@@ -842,7 +844,7 @@ export function DocumentPage({
   const [source, setSource] = useState("");
   useEffect(() => {
     if (loaded.data) {
-      setPayload(loaded.data.document.payload);
+      setPayload(documentFacts(loaded.data.document.payload));
       setSource(
         loaded.data.document.raw_document_refs?.[0]?.raw_document_uid ?? "",
       );
@@ -941,6 +943,7 @@ export function DocumentPage({
           </dl>
           <p>{doc.parsing_result.review_uid && doc.latest_review?.uid === doc.parsing_result.review_uid ? "This exact document revision was accepted automatically under the recorded parsing policy." : `Parsing outcome: ${human(doc.parsing_result.reason_code)}. Document review decisions are shown separately below.`}</p>
         </ApplicationCard>}
+        <DocumentReviewReason document={doc} />
         {action.feedback}
         {tab === "evidence" ? <ExtractionEvidence key={`${uid}:${doc.revision}`} uid={uid} revision={doc.revision} /> : tab !== "review" ? (
           <div className="split-view">
@@ -1024,8 +1027,8 @@ export function DocumentPage({
           <ApplicationCard header={<h2>Review revision {doc.revision}</h2>}>
             <div className="form-stack">
               <Notice>
-                Acceptance applies only to this exact submitted revision. Record
-                a reason based on the original source.
+                Acceptance applies only to this exact submitted revision.
+                Review comments are optional.
               </Notice>
               {doc.latest_review && (
                 <div>
@@ -1051,7 +1054,7 @@ export function DocumentPage({
                 </Notice>
               ) : (
                 <>
-                  <Field label="Review reason" required>
+                  <Field label="Review comments (optional)">
                     <Textarea
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
@@ -1065,7 +1068,6 @@ export function DocumentPage({
                         key={decision}
                         variant={decision === "accepted" ? "primary" : "danger"}
                         pending={action.pending}
-                        disabled={!reason.trim()}
                         onClick={() =>
                           void action.run(
                             () =>
@@ -1074,7 +1076,7 @@ export function DocumentPage({
                                 expected_decision_sequence:
                                   doc.latest_review?.decision_sequence ?? 0,
                                 decision,
-                                reason,
+                                comments: reason,
                               }),
                             `Revision ${decision}.`,
                           )
@@ -1099,115 +1101,7 @@ export function DocumentPage({
   );
 }
 
-export function DocumentSets({
-  catalog,
-  selected,
-  version,
-}: {
-  catalog: Catalog;
-  selected?: string;
-  version?: string;
-}) {
-  const policy = catalog.sets.find((s) => s.key === selected && (version === undefined || String(s.version) === version));
-  const def = useMemo(
-    () =>
-      staticDefinition("document-sets", "Document Sets", catalog.sets.map((s) => ({ ...s, uid: `${s.key}@${s.version}` })), [
-        {
-          id: "name",
-          header: "Document set",
-          importance: "primary",
-          getValue: (s) => s.name,
-        },
-        {
-          id: "version",
-          header: "Version",
-          importance: "secondary",
-          getValue: (s) => s.version,
-        },
-        {
-          id: "requirements",
-          header: "Requirements",
-          importance: "secondary",
-          getValue: (s) => s.requirements.length,
-        },
-      ]),
-    [catalog.sets],
-  );
-  return (
-    <Page>
-      {policy ? (
-        <ResourceDetailShell
-          summary={summary(policy.key, policy.name, "Document set", [
-            ["Published version", policy.version],
-          ])}
-          breadcrumbs={[
-            {
-              id: "sets",
-              label: "Document Sets",
-              onSelect: () => navigate("/document-sets"),
-            },
-            { id: policy.key, label: policy.name },
-          ]}
-          contentVariant="plain"
-        >
-          <p>{policy.description}</p>
-          <ComparisonPolicy rules={policy.comparisons ?? []} />
-          <p className="muted">Each requirement accepts any qualifying alternative below. Calendar-month rules clamp anniversaries to the last day of a shorter month. Evidence is fresh through its age limit; periodic renewal is due on its anniversary. Dates are evaluated in UTC.</p>
-          <div className="requirement-list">
-            {policy.requirements.map((r: Row) => (
-              <ApplicationCard
-                key={r.key}
-                header={
-                  <div className="actions">
-                    <h2>{human(r.key)}</h2>
-                    <Badge>
-                      {r.mandatory ? "Mandatory when applicable" : "Optional"}
-                    </Badge>
-                  </div>
-                }
-              >
-                <p>{r.description}</p>
-                <p>
-                  Minimum: {r.min_count} distinct document
-                  {r.min_count === 1 ? "" : "s"}
-                </p>
-                {r.condition && (
-                  <p className="muted">
-                    Applies when {human(r.condition.field).toLowerCase()} is{" "}
-                    {String(r.condition.equals)}. Missing reference information
-                    needs clarification.
-                  </p>
-                )}
-                <p>Accepted alternatives (any qualifying option):</p>
-                <ul>
-                  {r.options.map((o: Row) => (
-                    <li key={o.document_type}>
-                      {human(o.document_type)}
-                      {o.require_unexpired ? " · Must be currently valid" : ""}
-                      {o.max_age_days != null ? ` · At most ${o.max_age_days} days old` : ""}
-                      {o.max_age_months != null ? ` · At most ${o.max_age_months} calendar months old` : ""}
-                      {o.freshness_field ? ` · Age measured from ${human(o.freshness_field).toLowerCase()}` : ""}
-                      {o.renewal_interval_months != null ? ` · ${o.renewal_basis === "submitted_at" ? "Submit a new revision" : "Review again"} every ${o.renewal_interval_months} calendar months from ${o.renewal_basis === "submitted_at" ? "submission" : "the last accepted review"}` : ""}
-                      {o.required_fields.length
-                        ? ` · Also requires ${o.required_fields.map(human).join(", ")}`
-                        : ""}
-                    </li>
-                  ))}
-                </ul>
-              </ApplicationCard>
-            ))}
-          </div>
-        </ResourceDetailShell>
-      ) : (
-        <ResourceListPage
-          definition={def}
-          tablePresentation="auto"
-          onRowActivate={(s) => navigate(`/document-sets/${s.key}?version=${s.version}`)}
-        />
-      )}
-    </Page>
-  );
-}
+export { DocumentSets } from "./DocumentSets";
 
 export function Reconciliation({
   catalog,

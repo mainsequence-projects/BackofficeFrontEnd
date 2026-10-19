@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Button, Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
-import { ResourcePicker } from "@dev-mainsequence/command-center-sdk/views";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Badge, Button, Field, Input } from "@dev-mainsequence/command-center-sdk/controls";
+import { ResourceListPage } from "@dev-mainsequence/command-center-sdk/views";
+import type { ResourceApplicationDefinition } from "@dev-mainsequence/command-center-sdk/resource";
 import { ApplicationCard, ApplicationPage, ApplicationPageHeader, ApplicationPageStack } from "@dev-mainsequence/command-center-sdk/layout";
 import { api, human, type Catalog, type DocumentType } from "./api";
 import { Loading, Notice, OperationRecovery, useAction, useLoad } from "./ui";
@@ -21,20 +22,47 @@ export function Admin({ viewer, types }: { viewer: Catalog["viewer"]; types: Doc
 }
 
 function DocumentTypeSettings({ types }: { types: DocumentType[] }) {
-  const [kind, setKind] = useState(types[0]?.document_type ?? "");
-  if (!kind) return <Notice error>No document types are available. Reload the document catalog before configuring acceptance.</Notice>;
-  return <ParsingSettingsPage key={kind} documentType={kind} types={types} onTypeChange={setKind} />;
+  const definition = useMemo<ResourceApplicationDefinition<DocumentType, string>>(() => ({
+    id: "document-parsing-policies",
+    label: "Document parsing",
+    itemLabel: "document types",
+    description: "All document types and their acceptance settings. Save changes separately for each row.",
+    getId: (type) => type.document_type,
+    columns: [{ id: "policy", header: "Document types", importance: "primary", renderCell: (type) => <ParsingSettingsRow documentType={type.document_type} /> }],
+    adapter: {
+      async list() {
+        return { items: types, pageInfo: { pageIndex: 0, pageSize: Math.max(types.length, 1), totalItems: types.length, hasNextPage: false, hasPreviousPage: false } };
+      },
+    },
+  }), [types]);
+  return <ApplicationPage maxWidth="full"><ApplicationPageStack>
+    <OperationRecovery />
+    <ApplicationPageHeader title="Admin" description="Organization settings for this Back Office environment." />
+    <ResourceListPage
+      definition={definition}
+      pageSize={Math.max(types.length, 1)}
+      searchable={false}
+      tablePresentation="table"
+      emptyContent={<p>No document types are available. Reload the document catalog before configuring acceptance.</p>}
+    />
+    <ApplicationCard header={<h2>How automatic acceptance works</h2>}>
+      <p>Every document type defaults to automatic acceptance On at 80%. Save a row to override its settings.</p>
+      <p>The threshold is the extractor’s classification confidence, from 0 to 100%. A score at or above the saved threshold qualifies for automatic acceptance; a lower or missing score needs review.</p>
+      <p className="muted">Invalid or incomplete attributes and missing source evidence always need review. Existing review decisions are never overwritten. Changes apply to future parsing completions; earlier decisions retain their recorded policy version.</p>
+    </ApplicationCard>
+  </ApplicationPageStack></ApplicationPage>;
 }
 
-function ParsingSettingsPage({ documentType, types, onTypeChange }: { documentType: string; types: DocumentType[]; onTypeChange: (value: string) => void }) {
+function ParsingSettingsRow({ documentType }: { documentType: string }) {
+  const title = human(documentType);
   const loaded = useLoad(async (signal) => {
     const settings = await api.get<ParsingSettings>(`/admin/parsing-settings?document_type=${encodeURIComponent(documentType)}`, signal);
     if (settings.document_type !== documentType || settings.score_kind !== "classification_confidence")
       throw new Error("The service returned settings for a different document type or confidence measure. Reload before editing.");
     return settings;
   }, [documentType]);
-  const [enabled, setEnabled] = useState(false);
-  const [threshold, setThreshold] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [threshold, setThreshold] = useState("80.00");
   const action = useAction(loaded.refresh);
   useEffect(() => {
     if (loaded.data) {
@@ -52,33 +80,28 @@ function ParsingSettingsPage({ documentType, types, onTypeChange }: { documentTy
       acceptance_threshold_percent: threshold.trim() || null,
     }, "PUT"), "Parsing settings saved.");
   }
-  return <ApplicationPage maxWidth="wide"><ApplicationPageStack>
-    <OperationRecovery />
-    <ApplicationPageHeader title="Admin" description="Organization settings for this Back Office environment." />
-    <Field label="Document type" description="Each document type has its own policy. Save changes before choosing another type.">
-      <ResourcePicker ariaLabel="Document type" fullWidth value={documentType} onValueChange={onTypeChange} disabled={action.pending} options={types.map((type) => ({ value: type.document_type, label: type.name || human(type.document_type), subtitle: type.description }))} />
-    </Field>
-    {loaded.loading || loaded.error || !loaded.data ? <Loading error={loaded.error} /> : <>
-      <ApplicationCard header={<h2>Document parsing</h2>}>
-        <p>Choose when {types.find((type) => type.document_type === documentType)?.name || human(documentType)} can be accepted automatically using the extractor’s classification confidence.</p>
-        <form onSubmit={save} className="form-stack">
-          <Field label="Automatic acceptance" controlId="automatic-acceptance" description="Accept qualifying document revisions automatically after parsing.">
-            <Button id="automatic-acceptance" type="button" aria-pressed={enabled} onClick={() => setEnabled((value) => !value)} disabled={action.pending}>
-              {enabled ? "Automatic acceptance on" : "Automatic acceptance off"}
+  const changed = loaded.data && (enabled !== loaded.data.automatic_acceptance_enabled || threshold !== (loaded.data.acceptance_threshold_percent ?? ""));
+  return <section className="parsing-policy" data-document-type={documentType} aria-labelledby={`policy-title-${documentType}`}>
+    <form onSubmit={save} className="parsing-policy-row" aria-label={`${title} parsing settings`}>
+      <div className="parsing-policy-heading">
+        <h3 id={`policy-title-${documentType}`}>{title}</h3>
+        {loaded.data && <span className="muted" title={loaded.data.changed_at ? `Last saved ${new Date(loaded.data.changed_at).toLocaleString()}` : undefined}>{loaded.data.revision ? `Policy version ${loaded.data.revision}` : "Default · On at 80%"}</span>}
+        {changed && <Badge variant="warning">Unsaved changes</Badge>}
+      </div>
+      {loaded.loading || loaded.error || !loaded.data ? <div className="parsing-policy-load"><Loading error={loaded.error} />{loaded.error && <Button onClick={loaded.refresh}>Retry settings</Button>}</div> : <>
+          <Field label="Automatic acceptance" controlId={`automatic-acceptance-${documentType}`}>
+            <Button id={`automatic-acceptance-${documentType}`} type="button" aria-pressed={enabled} onClick={() => setEnabled((value) => !value)} disabled={action.pending}>
+              {enabled ? "On" : "Off"}
             </Button>
           </Field>
-          <Field label="Acceptance threshold (%)" controlId="parsing-threshold" required={enabled} description="Classification confidence at or above this percentage qualifies. Use 0–100, with up to two decimal places.">
-            <Input id="parsing-threshold" type="number" min="0" max="100" step="0.01" required={enabled} value={threshold} onChange={(event) => setThreshold(event.target.value)} placeholder="Enter a percentage" disabled={action.pending} />
+          <Field label="Acceptance threshold (%)" controlId={`parsing-threshold-${documentType}`} required={enabled}>
+            <Input id={`parsing-threshold-${documentType}`} type="number" min="0" max="100" step="0.01" required={enabled} value={threshold} onChange={(event) => setThreshold(event.target.value)} placeholder="0–100" disabled={action.pending} />
           </Field>
-          <p>{enabled ? threshold !== "" ? `Classification confidence of ${threshold}% or higher qualifies for automatic acceptance when all document checks pass. Lower confidence needs review.` : "Enter a threshold before saving automatic acceptance for this document type." : "Automatic acceptance is off. Parsed documents of this type need review."}</p>
-          <p className="muted">This is the extractor’s confidence in the document type, expressed as one percentage per document. Missing confidence, invalid or incomplete attributes, and missing source evidence always need review. A score cannot override an existing review decision.</p>
-          <p className="muted">Changes apply to future parsing completions. Earlier acceptance decisions retain the policy version used at the time.</p>
-          <Button type="submit" disabled={action.pending || loaded.loading}>{action.pending ? "Saving…" : "Save parsing settings"}</Button>
-          {action.feedback}
-        </form>
-      </ApplicationCard>
-      <p className="muted">{loaded.data.revision ? `Saved policy version ${loaded.data.revision}${loaded.data.changed_at ? ` · ${new Date(loaded.data.changed_at).toLocaleString()}` : ""}.` : "Not configured for this document type. Automatic acceptance is off until an administrator saves its policy."}</p>
-      {action.conflict && <Button onClick={loaded.refresh}>Reload saved settings</Button>}
-    </>}
-  </ApplicationPageStack></ApplicationPage>;
+          <p className="parsing-policy-rule">{enabled ? threshold !== "" ? `≥ ${threshold}%: accepted · Below ${threshold}%: needs review` : "Enter an acceptance threshold." : "All parsed results need review."}</p>
+          <Button type="submit" aria-label="Save parsing settings" disabled={action.pending || (!changed && loaded.data.revision > 0)}>{action.pending ? "Saving…" : "Save"}</Button>
+      </>}
+    </form>
+    {action.feedback}
+    {action.conflict && <div><Button onClick={loaded.refresh}>Reload saved settings</Button></div>}
+  </section>;
 }

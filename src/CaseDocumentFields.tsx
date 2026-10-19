@@ -4,6 +4,7 @@ import { ApplicationCard } from "@dev-mainsequence/command-center-sdk/layout";
 import { api, type Row, type Schema } from "./api";
 import { navigate } from "./App";
 import { SchemaForm } from "./SchemaForm";
+import { documentFacts } from "./DocumentScope";
 import { Loading, Notice, useAction, useLoad } from "./ui";
 
 export function CaseDocumentFields({
@@ -36,7 +37,9 @@ export function CaseDocumentFields({
     onPendingChange(action.pending);
     return () => onPendingChange(false);
   }, [action.pending, onPendingChange]);
-  const changed = JSON.stringify(payload) !== JSON.stringify(document.payload);
+  const scopedPayload = documentFacts(payload);
+  const changed = JSON.stringify(scopedPayload) !== JSON.stringify(documentFacts(document.payload));
+  const needsScopeCleanup = JSON.stringify(documentFacts(document.payload)) !== JSON.stringify(document.payload);
   return (
     <ApplicationCard
       className="case-document-fields"
@@ -75,7 +78,7 @@ export function CaseDocumentFields({
                   `/documents/${document.uid}/draft`,
                   {
                     expected_revision: draftRevision,
-                    payload,
+                    payload: scopedPayload,
                     raw_document_refs: document.raw_document_refs,
                   },
                   "PATCH",
@@ -124,10 +127,18 @@ export function CaseDocumentFields({
                 pending={action.pending}
                 onClick={() =>
                   void action.run(
-                    () =>
-                      api.command(`/documents/${document.uid}/submit`, {
-                        expected_revision: document.revision,
-                      }),
+                    async () => {
+                      const draft = needsScopeCleanup
+                        ? await api.command(`/documents/${document.uid}/draft`, {
+                            expected_revision: document.revision,
+                            payload: scopedPayload,
+                            raw_document_refs: document.raw_document_refs,
+                          }, "PATCH")
+                        : document;
+                      return api.command(`/documents/${document.uid}/submit`, {
+                        expected_revision: draft.revision,
+                      });
+                    },
                     "Document submitted for review.",
                   )
                 }

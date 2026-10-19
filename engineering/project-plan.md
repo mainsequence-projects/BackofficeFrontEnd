@@ -33,7 +33,7 @@ schema descriptions and assignment-specific requirements drive the forms.
 | --- | --- | --- | --- |
 | `persons` | People | Find a person, maintain reference details, and open their cases. | `docs/persons/index.md` |
 | `documents` | Documents | Upload, inspect, correct, submit, and review documents. | `docs/documents/index.md` |
-| `document-sets` | Document Sets | Inspect requirement definitions and their published versions. | `docs/document-sets/index.md` |
+| `document-sets` | Document Sets | Explore requirement trees and create reusable document sets as an administrator. | `docs/document-sets/index.md` |
 | `reconciliation` | Reconciliation | See outstanding requirements, run evaluations, and understand findings. | `docs/reconciliation/index.md` |
 | `agent` | Agent | Ask the Main Sequence agent to explain or assist with a case. | `docs/agent/index.md` |
 | `admin` | Admin | Organization administrators configure classification-confidence acceptance for each document type. | `docs/admin/index.md` |
@@ -83,10 +83,7 @@ Display the set's purpose, version, requirement groups, accepted alternatives,
 additional required attributes, minimum counts, freshness limits, and applicability
 conditions. The initial catalog includes `NewAccountRequirements`.
 
-The initial release reads definitions authored and versioned by backend code.
-Publishing an arbitrary visual policy editor is a separate capability. Optional
-documents must not be displayed as universally mandatory. Explain unknown
-applicability as information still needed.
+The compact tree explorer shows requirement groups, their accepted document alternatives, and cross-document checks. Selecting a node opens one detail area. Organization administrators can create a new version-1 set, or copy a published set as a template, using the same tree and field editors. Creation validates canonical schema/field references, explicitly binds existing case types, and uses the shared durable API mutation journal. Existing keys cannot be replaced. Optional documents must not be displayed as universally mandatory. Explain unknown applicability as information still needed.
 
 ### Reconciliation
 

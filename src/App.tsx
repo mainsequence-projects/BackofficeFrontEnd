@@ -16,6 +16,7 @@ import { api, ApiError, errorText, latestDocumentTypes, type Catalog } from "./a
 import { AssistantWorkspace } from "./assistant/Assistant";
 import { CaseQueue, CaseWorkspace } from "./CaseDashboard";
 import { Admin } from "./Admin";
+import { DropFiles } from "./DropFiles";
 import {
   People,
   PersonPage,
@@ -26,6 +27,7 @@ import {
 } from "./pages";
 
 const destinations = [
+  { id: "drop-files", label: "Drop files", href: "/drop-files", description: "Upload documents and allocate them to every eligible case" },
   { id: "queue", label: "Cases", href: "/queue", description: "Review queue, subjects and assigned staff" },
   {
     id: "persons",
@@ -291,7 +293,9 @@ export default function App() {
   const tab = url.searchParams.get("tab") ?? undefined;
   const allowedDestinations = destinations.filter((item) => item.id !== "admin" || catalog.viewer.is_organization_admin === true);
   const page =
-    section === "queue" ? (
+    section === "drop-files" ? (
+      <DropFiles userUid={catalog.viewer.user_uid} />
+    ) : section === "queue" ? (
       <CaseQueue catalog={catalog} />
     ) : section === "review" && uid ? (
       <CaseWorkspace key={uid} uid={uid} catalog={catalog} runUid={url.searchParams.get("run") ?? ""} report={url.searchParams.get("view") === "report"} />

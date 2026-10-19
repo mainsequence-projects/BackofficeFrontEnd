@@ -93,7 +93,12 @@ await page.route("**/api/**", async (route) => {
 try {
   for (schema of contracts) {
     kind = schema.document_type;
-    payload = { document_type: kind };
+    payload = {
+      document_type: kind,
+      ...(schema.canonical_schema.properties.portrait_reference
+        ? { portrait_reference: { raw_document_uid: null, page_number: 1 } }
+        : {}),
+    };
     const expectedPath = `/api/document-types/${kind}/schema`;
     const expectedVersion = String(schema.version);
     const schemaLoaded = page.waitForResponse((response) => {
@@ -104,6 +109,10 @@ try {
     await schemaLoaded;
     await page.getByText("Document attributes", { exact: true }).waitFor();
     await page.locator('[id^="document."]').first().waitFor();
+    assert.equal(await page.locator('[id*="portrait_reference"]').count(), 0,
+      `${kind} v${schema.version}: product V1 must not render portrait controls`);
+    assert.equal(await page.getByRole("group", { name: "Portrait reference", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: /portrait reference/i }).count(), 0);
     for (const key of Object.keys(schema.canonical_schema.properties)) {
       if (schema.canonical_schema.required?.includes(key)) continue;
       const labels = page.locator(
