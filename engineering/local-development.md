@@ -94,13 +94,19 @@ continue to be reused. Occupied API or Vite ports fail before additional service
 start. Port checks allow recently closed connections, so immediate restarts work.
 Adjust the launch arguments and browser-debugger URL together when changing ports.
 
-The backend pins `mainsequence==9.0.29` and `mainsequence-metatable==0.1.47`.
+The backend pins `mainsequence==9.0.29` and `mainsequence-metatable==0.1.48`.
 For these versions, its developer-session adapter uses the same renewing CLI
 session helper as `mainsequence auth token`. Its local MetaTables entry point calls
 the installed package's `metatables.api.app.development.run_worker`, retaining the
 package's loopback admission, runtime controls, catalog, and SQLite initialization.
 This avoids the pinned CLI launcher's saved-session mismatch. Recheck these adapter
 interfaces when upgrading the pinned packages.
+
+The 0.1.48 update passes all 60 backend tests, all 11 launcher tests, and the
+installed SDK capability check. Full stack verification with this version could
+not finish because the configured Main Sequence platform API at `127.0.0.1:8000`
+reset connections during identity lookup. Restore that API, then repeat
+`--verify-only` below before treating this version's full stack as verified.
 
 No MetaTables Admin frontend is installed or launched by this configuration.
 Table operations are available through the local MetaTables client/API.
