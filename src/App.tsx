@@ -14,6 +14,7 @@ import {
 } from "@dev-mainsequence/command-center-sdk/theme";
 import { api, ApiError, errorText, type Catalog } from "./api";
 import { AssistantWorkspace } from "./assistant/Assistant";
+import { Admin } from "./Admin";
 import {
   People,
   PersonPage,
@@ -54,13 +55,14 @@ const destinations = [
     href: "/agent",
     description: "Ask the Back Office assistant about a case",
   },
+  { id: "admin", label: "Admin", href: "/admin", description: "Document parsing and acceptance settings" },
 ];
-const navigation = defineNavigationApplication({
+function applicationNavigation(isAdmin: boolean) { return defineNavigationApplication({
   id: "backoffice",
   label: "Back Office",
   defaultDestinationId: "persons",
-  subApplications: [{ id: "casework", label: "Back Office", destinations }],
-});
+  subApplications: [{ id: "casework", label: "Back Office", destinations: destinations.filter((item) => item.id !== "admin" || isAdmin) }],
+}); }
 const connectionMessages: Record<string, string> = {
   idle: "Waiting for Command Center to connect.",
   authorizing: "Authorizing the secure application connection.",
@@ -285,6 +287,7 @@ export default function App() {
   const url = new URL(path, location.origin);
   const [section = "persons", uid] = url.pathname.slice(1).split("/");
   const tab = url.searchParams.get("tab") ?? undefined;
+  const allowedDestinations = destinations.filter((item) => item.id !== "admin" || catalog.viewer.is_organization_admin === true);
   const page =
     section === "persons" ? (
       uid ? (
@@ -315,21 +318,23 @@ export default function App() {
         personUid={url.searchParams.get("person") ?? ""}
         evaluationUid={url.searchParams.get("evaluation") ?? ""}
       />
+    ) : section === "admin" ? (
+      <Admin viewer={catalog.viewer} types={catalog.types} />
     ) : (
       <People />
     );
   return (
     <ApplicationNavigationPanelShell
-      application={navigation}
+      application={applicationNavigation(catalog.viewer.is_organization_admin === true)}
       activeDestinationId={
-        destinations.some((d) => d.id === section) ? section : "persons"
+        allowedDestinations.some((d) => d.id === section) ? section : "persons"
       }
       menuOpen={menu}
       onMenuOpenChange={setMenu}
       onNavigate={(intent) => navigate(`/${intent.destinationId}`)}
       panelClassName="backoffice-navigation"
       renderDestinationTrailing={({ destination }) =>
-        destination.id === destinations[destinations.length - 1].id ? (
+        destination.id === allowedDestinations[allowedDestinations.length - 1].id ? (
           <div className="documentation-footer">
             <Button
               iconOnly

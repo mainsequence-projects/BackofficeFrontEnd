@@ -30,6 +30,11 @@ const sidebars = {
       "type": "doc",
       "id": "agent/index",
       "label": "Agent"
+    },
+    {
+      "type": "doc",
+      "id": "admin/index",
+      "label": "Admin"
     }
   ]
 };

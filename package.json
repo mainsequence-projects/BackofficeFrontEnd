@@ -20,7 +20,8 @@
     "build:docs": "npm run docs:sync && docusaurus build documentation --out-dir ../dist/docs",
     "test:renewals": "node tests/renewals.mjs",
     "test:assistant": "node tests/assistant.mjs",
-    "test:docs:local": "node tests/local-docs.mjs"
+    "test:docs:local": "node tests/local-docs.mjs",
+    "test:admin": "node tests/admin.mjs"
   },
   "dependencies": {
     "@dev-mainsequence/command-center-ai": "0.0.15",

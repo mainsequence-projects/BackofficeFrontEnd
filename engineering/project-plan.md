@@ -36,11 +36,15 @@ schema descriptions and assignment-specific requirements drive the forms.
 | `document-sets` | Document Sets | Inspect requirement definitions and their published versions. | `docs/document-sets/index.md` |
 | `reconciliation` | Reconciliation | See outstanding requirements, run evaluations, and understand findings. | `docs/reconciliation/index.md` |
 | `agent` | Agent | Ask the Main Sequence agent to explain or assist with a case. | `docs/agent/index.md` |
+| `admin` | Admin | Organization administrators configure classification-confidence acceptance for each document type. | `docs/admin/index.md` |
 
 These are proposed IDs and labels. Final documentation must use the implemented
 navigation's exact IDs, labels, order, nesting, and supported-role superset.
 Person details can show tabs for reference information, documents, assignments,
 evaluations, and history without creating unrelated top-level guide categories.
+Admin is included in the supported-role documentation menu and is visible in the
+application only to verified organization administrators. Its implemented contract
+is recorded in [Admin parsing policies](admin-parsing.md).
 
 ## Feature contracts
 

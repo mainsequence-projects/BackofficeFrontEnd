@@ -14,7 +14,7 @@ try {
   const redirect = await fetch(origin + "/docs?theme=dark", { redirect: "manual" });
   assert.equal(redirect.status, 308);
   assert.equal(redirect.headers.get("location"), "/docs/?theme=dark");
-  const pages = ["", "persons/", "documents/", "document-sets/", "reconciliation/", "agent/"];
+  const pages = ["", "persons/", "documents/", "document-sets/", "reconciliation/", "agent/", "admin/"];
   const responses = await Promise.all(pages.map((path) => fetch(origin + "/docs/" + path)));
   for (const response of responses) {
     assert.equal(response.status, 200, response.url);
@@ -40,7 +40,7 @@ try {
     }).on("error", reject).end();
   });
   assert.equal(traversalStatus, 403);
-  console.log("Local guide passed: six real pages, compiled assets, concurrent first build, redirect, HEAD, missing pages, method and path guards.");
+  console.log("Local guide passed: seven real pages, compiled assets, concurrent first build, redirect, HEAD, missing pages, method and path guards.");
 } finally {
   await server.close();
 }

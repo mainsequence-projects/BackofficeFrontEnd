@@ -940,6 +940,16 @@ export function DocumentPage({
           </dl>
           <p className="muted">Recorded times use your local timezone. Evidence issue and completion dates are shown in the attributes below. Uploading or reviewing evidence does not reset its age.</p>
         </ApplicationCard>
+        {doc.parsing_result && <ApplicationCard header={<h2>Parsing result</h2>}>
+          <Status value={doc.parsing_result.decision} />
+          <dl className="document-dates">
+            <div><dt>Classification confidence</dt><dd>{doc.parsing_result.parsing_score_percent === null ? "Not supplied" : `${doc.parsing_result.parsing_score_percent}%`}</dd></div>
+            <div><dt>Acceptance threshold</dt><dd>{doc.parsing_result.acceptance_threshold_percent === null ? "Not configured" : `${doc.parsing_result.acceptance_threshold_percent}%`}</dd></div>
+            <div><dt>Policy version</dt><dd>{doc.parsing_result.policy_revision || "Review-only default"}</dd></div>
+            <div><dt>Processed</dt><dd>{recordedTime(doc.parsing_result.processed_at)}</dd></div>
+          </dl>
+          <p>{doc.parsing_result.review_uid && doc.latest_review?.uid === doc.parsing_result.review_uid ? "This exact document revision was accepted automatically under the recorded parsing policy." : `Parsing outcome: ${human(doc.parsing_result.reason_code)}. Document review decisions are shown separately below.`}</p>
+        </ApplicationCard>}
         {action.feedback}
         {tab !== "review" ? (
           <div className="split-view">

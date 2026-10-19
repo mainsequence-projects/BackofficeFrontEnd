@@ -21,6 +21,7 @@ can also inspect cases and record document decisions.
 - [Document Sets](document-sets/index.md): inspect published requirements and accepted alternatives.
 - [Reconciliation](reconciliation/index.md): evaluate a case and follow its findings.
 - [Agent](agent/index.md): ask the Back Office assistant about requirements and missing evidence.
+- [Admin](admin/index.md): organization administrators configure classification-confidence acceptance by document type.
 
 The initial new-account requirements are an illustrative policy. Confirm that
 the policy is appropriate for your organization before relying on its results.

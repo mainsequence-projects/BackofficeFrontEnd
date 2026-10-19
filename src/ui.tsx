@@ -22,6 +22,7 @@ export function Status({ value }: { value: string }) {
                   "due_soon",
                   "pending",
                   "pending_review",
+                  "needs_review",
                   "needs_information",
                   "draft",
                 ].includes(value)
@@ -99,6 +100,7 @@ export function useAction(onSuccess?: () => void) {
   }
   return {
     pending,
+    conflict,
     run,
     feedback: (
       <>

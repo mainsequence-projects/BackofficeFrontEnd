@@ -29,7 +29,7 @@ export interface Catalog {
   personSchema: Schema;
   types: DocumentType[];
   sets: Row[];
-  viewer: { user_uid: string; can_review: boolean };
+  viewer: { user_uid: string; can_review: boolean; is_organization_admin?: boolean };
 }
 
 export function savedState(key: string, value?: string | null): string | null {
