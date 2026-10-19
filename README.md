@@ -27,6 +27,13 @@ the frontend integration milestone will expose these contracts through the API.
 
 ## Current development commands
 
+For the complete local stack, open this repository in VS Code, select
+**Back Office: local stack**, and press **F5**. It starts the API, Vite, and local
+Main Sequence MetaTables and opens `http://127.0.0.1:5174/` after readiness checks.
+Use **Back Office: install local dependencies** for first setup.
+See the [local development guide](engineering/local-development.md) for paths,
+authentication, local migrations, shared-runtime troubleshooting, and debugging.
+
 ```bash
 npm ci
 npm run dev

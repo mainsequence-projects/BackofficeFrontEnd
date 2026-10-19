@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Back Office: install backend dependencies",
+      "type": "process",
+      "command": "uv",
+      "args": ["sync", "--locked"],
+      "options": {"cwd": "${workspaceFolder}/${config:backoffice.backendPath}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Back Office: install frontend dependencies",
+      "type": "process",
+      "command": "npm",
+      "args": ["ci", "--ignore-scripts"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Back Office: install local dependencies",
+      "dependsOn": ["Back Office: install backend dependencies", "Back Office: install frontend dependencies"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Explicitly enable the installed MetaTables package's local development runtime.
+# Runtime data remains in the shared laptop SQLite store selected by MetaTables.
+local_mode_available: true
