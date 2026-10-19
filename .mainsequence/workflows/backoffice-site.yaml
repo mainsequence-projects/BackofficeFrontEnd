@@ -1,0 +1,30 @@
+api_version: "3.0.0"
+name: backoffice-site
+scope:
+  environments: [production]
+resources:
+  - key: backoffice
+    kind: static_site
+    spec:
+      name: Back Office
+      root_directory: ""
+      framework: vite
+      node_version: "24"
+      output_directory: dist
+      routing_mode: spa
+      spa_entry_file: /index.html
+      automatic_deployment: true
+      automatic_redeployment:
+        enabled: true
+        tag_regex: null
+      revision_retention_count: 3
+      navigation_link:
+        label: Back Office
+        icon_key: app-window
+        icon_mask_path: public/backoffice-icon.svg
+        is_enabled: true
+        audiences:
+          organization_wide: false
+          team_uids: []
+          user_uids:
+            - e2a4f38a-1b5f-40a3-974f-70bc8f065b3f

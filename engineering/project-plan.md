@@ -96,6 +96,10 @@ applicable mandatory requirements.
 
 ### Agent
 
+The [assistant right-rail implementation plan](assistant-right-rail.md) specifies
+the responsive rail and expanded Agent route, shared engine, runtime Agent and
+Environment discovery, business context, delivery order, and acceptance checks.
+
 Use Command Center AI's documented Agent/session integration for the deployed
 backend agent. Carry only supported business context, such as the selected person,
 assignment, document revision, and evaluation reference. A business record UID is
@@ -152,10 +156,13 @@ and hosted transport configuration explicit. A standalone hosted URL without its
 trusted host integration shows the documented unavailable state rather than
 inventing credentials or impersonating a developer.
 
-The release artifact contains the application and its user guide. Deploy it through
-the repository's `.mainsequence/workflows/` Static Site declaration. Current
-workflow templates and exact bindings are verified with the platform during
-implementation; this planning change does not deploy anything.
+The initial Static Site declaration now lives in
+`.mainsequence/workflows/backoffice-site.yaml` and enables deployment on every
+push to the registered Production branch with the Back Office icon. See the
+[deployment guide](deployment.md) for validation and release observation. The
+current artifact remains the starter; the complete release will include the
+implemented application and its user guide. API bindings are added when the
+business backend is ready.
 
 ## Frontend folder scaffolding
 

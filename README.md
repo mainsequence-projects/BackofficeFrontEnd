@@ -25,6 +25,14 @@ the frontend integration milestone will expose these contracts through the API.
 - Obtain document fields and descriptions from the backend's Pydantic schemas.
 - Deploy the application as a Main Sequence Static Site from this repository root.
 
+The [Static Site workflow](.mainsequence/workflows/backoffice-site.yaml) enables
+deployment on every push to the registered Production `main` branch, builds
+`dist` with Node 24, and supplies the Back Office navigation icon. See the
+[deployment guide](engineering/deployment.md) for validation and release checks.
+The [assistant right-rail plan](engineering/assistant-right-rail.md) defines the
+responsive conversation surface, shared session engine, backend prerequisites,
+and acceptance checks; the assistant is not implemented yet.
+
 ## Current development commands
 
 For the complete local stack, open this repository in VS Code, select
