@@ -31,9 +31,18 @@ revision and backend-returned `public_url`. Verify the deployed page and both
 SVG assets. Navigation warnings are separate from build/activation success;
 check them even when the site deploys. Do not infer success from a push alone.
 
-The initial artifact remains the React starter; business screens and the
-assistant are future implementation. No API or Agent UID is embedded in this
-build. See [the assistant rail plan](assistant-right-rail.md) for its prerequisites.
+The artifact contains People, Documents, Document Sets, Reconciliation and the
+served `/docs/` guide. `VITE_BACKOFFICE_API_RELEASE_UID` resolves the
+`BackofficeBackend` repository's `backoffice_api` resource in the same Environment.
+The platform supplies `VITE_COMMAND_CENTER_ORIGIN`. Hosted API access uses the
+SDK iframe bridge; a standalone production link displays the unavailable state.
+See [the assistant rail plan](assistant-right-rail.md) for the separate Tau milestone.
+
+Deploy the backend's migration Job before its API, then grant the API workload
+`data_writer` access to the migrated `backoffice` namespace through MetaTables.
+Application startup and readiness never run migrations. Verify API `/readyz`
+through the authorized transport before declaring the frontend release usable.
+Keep synthetic browser test data in the isolated local SQLite runtime.
 
 The workflow path and resource key own the release identity. Renaming or removing
 them can delete the site and recreate its UID/URL. A failed new deployment

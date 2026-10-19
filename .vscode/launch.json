@@ -10,7 +10,7 @@
       "program": "${workspaceFolder}/scripts/dev_stack.py",
       "args": [
         "--backend-dir", "${workspaceFolder}/${config:backoffice.backendPath}",
-        "--api-port", "8001",
+        "--api-port", "28641",
         "--site-port", "5174",
         "--metatables-port", "18473",
         "--sdk-session-source", "vscode",

@@ -9,7 +9,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: process.env.BACKOFFICE_API_ORIGIN ?? "http://127.0.0.1:8001",
+        target: process.env.BACKOFFICE_API_ORIGIN ?? "http://127.0.0.1:28641",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api(?=\/|$)/, "") || "/",
       },

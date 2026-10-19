@@ -5,11 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "build": "npm run build:app && npm run build:docs",
+    "preview": "vite preview",
+    "test:browser": "node tests/browser.mjs",
+    "test:forms": "node tests/forms.mjs",
+    "test:production": "node tests/production.mjs",
+    "test:revisions": "node tests/revisions.mjs",
+    "theme:check": "command-center-sdk theme audit --path src",
+    "check": "npm run docs:check && npm run theme:check && tsc -b",
+    "build:app": "tsc -b && vite build",
+    "docs:sync": "node scripts/sync-docs-navigation.mjs",
+    "docs:check": "node scripts/check-docs-toolchain.mjs && npm run docs:sync -- --check && node scripts/validate-docs.mjs",
+    "docs:dev": "npm run docs:sync && docusaurus start documentation --host 127.0.0.1 --port 3011 --no-open",
+    "build:docs": "npm run docs:sync && docusaurus build documentation --out-dir ../dist/docs"
   },
   "dependencies": {
-    "@dev-mainsequence/command-center-sdk": "latest",
+    "@dev-mainsequence/command-center-sdk": "0.5.18",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
@@ -19,6 +30,13 @@
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^6.1.0",
     "typescript": "^5.9.2",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@mdx-js/react": "3.1.1",
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

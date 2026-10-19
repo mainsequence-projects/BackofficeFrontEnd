@@ -1,11 +1,12 @@
 # Main Sequence Back Office frontend plan
 
-Status: implementation plan for the accepted document reconciliation product.
-The backend foundation now provides version 1 canonical/draft schema pairs and a
-generated Pydantic reference. Those are code artifacts; the REST/MCP schema endpoint
-and Tau agent will be implemented in later backend milestones.
-The current application is a Vite/React starter. Screens, contracts, and guide
-paths below are proposed until implemented and verified.
+Status: the first manual casework release is implemented and verified in the
+browser against the real backend. Deployment is tracked in the release checks. The backend exposes
+people, source uploads, draft revisions, submission/review, assignments, evaluations,
+history and operation recovery. Forms consume all ten backend schemas. The four
+implemented destinations and their user guides are People, Documents, Document
+Sets and Reconciliation. OCR extraction and the Tau assistant remain separate
+backend-dependent milestones; the Agent route is not exposed yet.
 
 ## Responsibilities and dependencies
 
@@ -160,9 +161,8 @@ The initial Static Site declaration now lives in
 `.mainsequence/workflows/backoffice-site.yaml` and enables deployment on every
 push to the registered Production branch with the Back Office icon. See the
 [deployment guide](deployment.md) for validation and release observation. The
-current artifact remains the starter; the complete release will include the
-implemented application and its user guide. API bindings are added when the
-business backend is ready.
+artifact includes the implemented manual workflow and its user guide. The
+Static Site workflow binds the business API release by repository and resource key.
 
 ## Frontend folder scaffolding
 

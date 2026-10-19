@@ -1,27 +1,26 @@
 # Back Office Command Center application
 
-Frontend for the Main Sequence document reconciliation platform. The application
-will let reviewers manage people, assign document sets, upload and review documents,
-inspect reconciliation findings, and work with the Main Sequence reconciliation agent.
+Command Center application for the Main Sequence document reconciliation platform.
+Create and search people, assign published document requirements, upload source
+evidence, complete schema-driven attributes, review exact revisions, and evaluate
+requirements against the existing backend.
 
-The repository currently contains a Vite/React starter. The
-[frontend project plan](engineering/project-plan.md) defines the planned screens,
-folder structure, API and agent integration, documentation, and delivery milestones.
+The [frontend project plan](engineering/project-plan.md) defines the screens,
+API and agent integration, documentation, and delivery milestones.
 The companion `backofficebackend` CodeRepository owns the Pydantic document catalog,
 Main Sequence MetaTables, REST/MCP services, processing Jobs, and `ms-tau-sdk` agent.
 
-The backend foundation now contains ten canonical/draft JSON Schema pairs under
-`schemas/documents/<type>/v1.json`, including English field descriptions and schema
-checksums. Its generated references are `docs/model-reference.md` and
-`docs/metatable-dictionary.md`. Business endpoints and the agent remain planned;
-the frontend integration milestone will expose these contracts through the API.
+The backend exposes ten canonical/draft JSON Schema pairs through authenticated
+business endpoints. Forms use those fields and descriptions. Source uploads use
+bounded chunks and checksum verification. Reviews and evaluations retain immutable
+history; changed evidence makes prior evaluations visibly out of date.
 
 ## Main Sequence integration
 
 - Use `@dev-mainsequence/command-center-sdk` for the application shell, controls,
   resource views, theme, and authorized embedded FastAPI transport.
-- Add a compatible `@dev-mainsequence/command-center-ai` version for Main Sequence
-  Agent conversations during implementation.
+- The separate assistant milestone will use `@dev-mainsequence/command-center-ai`
+  after a deployed Tau agent and its tools exist.
 - Obtain document fields and descriptions from the backend's Pydantic schemas.
 - Deploy the application as a Main Sequence Static Site from this repository root.
 
@@ -48,12 +47,12 @@ npm run dev
 npm run build
 ```
 
-These commands run/build the current starter. Planned documentation, integration,
-and browser checks are listed in the engineering plan and will be added with their
-corresponding features.
+Use Node 24. `npm run check` validates types, SDK theme usage, and guide structure.
+`npm run test:browser` verifies the complete manual workflow against an isolated
+loopback stack. It creates synthetic local records and refuses a non-loopback URL.
+`npm run build` produces both the application and the served user guide.
 
 ## Documentation locations
 
-Engineering plans and integration procedures live in `engineering/`. The future
-served user guide lives under `docs/` and follows the application's actual visible
-navigation. Each feature's guide is written and verified with the implemented UI.
+Engineering plans and integration procedures live in `engineering/`. The served
+user guide lives under `docs/` and follows the application's four destinations.

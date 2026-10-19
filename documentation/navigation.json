@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "sidebarId": "userGuideSidebar",
+  "home": {
+    "label": "User guide"
+  },
+  "navigation": [
+    {"id":"persons","label":"People","kind":"feature","applicationRoute":"/persons"},
+    {"id":"documents","label":"Documents","kind":"feature","applicationRoute":"/documents"},
+    {"id":"document-sets","label":"Document Sets","kind":"feature","applicationRoute":"/document-sets"},
+    {"id":"reconciliation","label":"Reconciliation","kind":"feature","applicationRoute":"/reconciliation"}
+  ]
+}

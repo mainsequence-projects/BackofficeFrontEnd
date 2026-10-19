@@ -121,7 +121,7 @@ class LocalStackTests(unittest.TestCase):
                     stack.selected_configuration(stack.DEFAULT_METATABLES_CONFIGURATION)
 
     def test_port_conflicts_and_invalid_numbers_fail_before_starting_services(self):
-        for ports in ([0], [65536], [8001, 8001]):
+        for ports in ([0], [65536], [28641, 28641]):
             with self.assertRaises(RuntimeError):
                 stack.ensure_ports_free(ports)
         with socket.socket() as listener:

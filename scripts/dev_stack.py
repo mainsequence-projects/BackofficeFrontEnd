@@ -176,8 +176,8 @@ def wait_for(check, children, label, timeout=90):
     raise RuntimeError(f"Timed out waiting for {label}; inspect the service output above.")
 
 
-def read_url(url, *, as_json=False):
-    with urlopen(url, timeout=2) as response:
+def read_url(url, *, as_json=False, timeout=2):
+    with urlopen(url, timeout=timeout) as response:
         return json.load(response) if as_json else response.status == 200
 
 
@@ -222,7 +222,6 @@ def run(args):
 
     from mainsequence.client.exceptions import ApiError
     from metatables import (
-        Namespace,
         configure_local_client,
         get_runtime_status,
         initialize_runtime,
@@ -322,18 +321,15 @@ def run(args):
                 )
             initialize_runtime()
         source_uid = require_local_runtime(get_runtime_status())
-        if not any(
-            namespace.name == "backoffice" for namespace in Namespace.filter(search="backoffice")
-        ):
-            Namespace.create(
-                "backoffice", description="Local Back Office document reconciliation tables."
-            )
         result = upgrade_application("src.backoffice.migrations:migration")
         if (
             str(result["data_source_uid"]) != source_uid
             or require_local_runtime(get_runtime_status()) != source_uid
         ):
             raise RuntimeError("The local MetaTables DataSource changed during preparation.")
+        from src.backoffice.services.application import publish_catalog
+
+        publish_catalog()
         print(f"Local Back Office migration: {result['revision']}", flush=True)
 
         backend_env = dict(
@@ -398,7 +394,11 @@ def run(args):
         )
         wait_for(lambda: read_url(f"{site_origin}/"), children, "Vite")
         try:
-            identity = read_url(f"{site_origin}/api/", as_json=True)
+            identity = wait_for(
+                lambda: read_url(f"{site_origin}/api/readyz", as_json=True, timeout=30),
+                children,
+                "the migrated Back Office API and authenticated developer identity",
+            )
         except HTTPError as exc:
             raise RuntimeError(
                 "Local API identity is unavailable. Check your Main Sequence login and platform connection."
@@ -436,7 +436,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend-dir", type=Path, required=True)
     parser.add_argument("--sdk-session-source", choices=["cli", "vscode"], default="vscode")
-    parser.add_argument("--api-port", type=int, default=8001)
+    parser.add_argument("--api-port", type=int, default=28641)
     parser.add_argument("--site-port", type=int, default=5174)
     parser.add_argument("--metatables-port", type=int, default=18473)
     parser.add_argument(
