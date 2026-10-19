@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from threading import Thread
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -174,14 +175,17 @@ def orphaned_service(process, *, cwd, port, target):
     )
 
 
-def recover_orphaned_services(backend, api_port, site_port):
+def recover_orphaned_services(backend, api_port, site_port, agent_port=None):
     """F5 can kill the launcher without running its child cleanup."""
     import psutil
 
-    for port, cwd, target, label in (
+    services = [
         (api_port, backend, "scripts.local_api:create_app", "API"),
         (site_port, SITE_DIR, str(SITE_DIR / "node_modules/vite/bin/vite.js"), "site"),
-    ):
+    ]
+    if agent_port is not None:
+        services.append((agent_port, backend, "api.tau.main:app", "agent"))
+    for port, cwd, target, label in services:
         if port_available(port):
             continue
         listeners = subprocess.run(
@@ -227,8 +231,9 @@ def wait_for(check, children, label, timeout=90):
     while time.monotonic() < deadline:
         for child in children:
             if child.poll() is not None:
+                service_label = getattr(child, "backoffice_service", "local service")
                 raise RuntimeError(
-                    f"A local service exited with code {child.returncode} while waiting for {label}."
+                    f"The {service_label} process exited with code {child.returncode} while waiting for {label}."
                 )
         try:
             value = check()
@@ -277,6 +282,54 @@ def local_agent_ready(origin):
     ):
         raise RuntimeError("The Tau agent did not start in the restricted local helper mode.")
     return state.get("ok") is True
+
+
+def forward_service_output(stream, label):
+    """Relay every child's stdout/stderr through the launcher's Debug Console."""
+    try:
+        for line in stream:
+            print(f"[{label}] {line.rstrip()}", flush=True)
+    finally:
+        stream.close()
+
+
+def start_service(command, *, label, cwd, env, children, readers):
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=dict(os.environ if env is None else env, PYTHONUNBUFFERED="1"),
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    process.backoffice_service = label
+    children.append(process)
+    reader = Thread(
+        target=forward_service_output,
+        args=(process.stdout, label),
+        daemon=True,
+        name=f"backoffice-{label}-logs",
+    )
+    readers.append(reader)
+    reader.start()
+    print(f"[{label}] Started process {process.pid}", flush=True)
+    return process
+
+
+def print_service_addresses(api_origin, site_origin, metatables_origin, agent_origin):
+    print("\nBack Office local services:", flush=True)
+    for label, origin in (
+        ("Site", site_origin),
+        ("API", api_origin),
+        ("API docs", f"{api_origin}/docs"),
+        ("MCP", f"{api_origin}/mcp"),
+        ("MetaTables", metatables_origin),
+        ("Agent", agent_origin or "disabled (--no-agent)"),
+    ):
+        print(f"  {label:12} {origin}", flush=True)
+    print("Logs below are labeled [API], [Agent], [Site], and [MetaTables].", flush=True)
 
 
 def stop_children(children):
@@ -341,19 +394,28 @@ def run(args):
     site_origin = f"http://127.0.0.1:{args.site_port}"
     agent_origin = f"http://127.0.0.1:{args.agent_port}"
     existing = running_server()
+    print_service_addresses(
+        api_origin,
+        site_origin,
+        existing["api_url"] if existing else f"http://127.0.0.1:{args.metatables_port}",
+        None if args.no_agent else agent_origin,
+    )
     ports = [args.api_port, args.site_port]
     if not args.no_agent:
         ports.append(args.agent_port)
     if not existing:
         ports.append(args.metatables_port)
-    recover_orphaned_services(backend, args.api_port, args.site_port)
+    recover_orphaned_services(
+        backend, args.api_port, args.site_port, None if args.no_agent else args.agent_port
+    )
     ensure_ports_free(ports)
     children = []
+    readers = []
 
-    def start(command, *, cwd=backend, env=None):
-        process = subprocess.Popen(command, cwd=cwd, env=env, start_new_session=True)
-        children.append(process)
-        return process
+    def start(command, *, label, cwd=backend, env=None):
+        return start_service(
+            command, label=label, cwd=cwd, env=env, children=children, readers=readers
+        )
 
     def start_metatables(configuration):
         return start(
@@ -365,7 +427,8 @@ def run(args):
                 str(configuration.resolve()),
                 "--port",
                 str(args.metatables_port),
-            ]
+            ],
+            label="MetaTables",
         )
 
     try:
@@ -399,7 +462,11 @@ def run(args):
                 start_metatables(configuration)
                 existing = None
             else:
-                print(f"Reusing verified local MetaTables: {existing['api_url']}", flush=True)
+                print(
+                    f"[MetaTables] Reusing verified runtime: {existing['api_url']} "
+                    "(existing process; its logs stay in its original terminal)",
+                    flush=True,
+                )
         else:
             start_metatables(selected_configuration(args.metatables_configuration))
 
@@ -464,12 +531,26 @@ def run(args):
                 "--reload-dir",
                 str(backend / "scripts"),
             ],
+            label="API",
             env=backend_env,
         )
         wait_for(lambda: read_url(f"{api_origin}/healthz"), children, "the Back Office API")
         if not args.no_agent:
             print(f"Starting local Tau agent: {agent_origin}", flush=True)
-            start([str(tau)], env=tau_environment(backend, args, os.environ))
+            start(
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "api.tau.main:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(args.agent_port),
+                ],
+                label="Agent",
+                env=tau_environment(backend, args, os.environ),
+            )
             wait_for(
                 lambda: local_agent_ready(agent_origin),
                 children,
@@ -506,6 +587,7 @@ def run(args):
                 str(args.site_port),
                 "--strictPort",
             ],
+            label="Site",
             cwd=SITE_DIR,
             env=site_env,
         )
@@ -545,10 +627,15 @@ def run(args):
         while True:
             for child in children:
                 if child.poll() is not None:
-                    raise RuntimeError(f"A local service stopped with code {child.returncode}.")
+                    service_label = getattr(child, "backoffice_service", "local service")
+                    raise RuntimeError(
+                        f"The {service_label} process stopped with code {child.returncode}."
+                    )
             time.sleep(0.5)
     finally:
         stop_children(children)
+        for reader in readers:
+            reader.join(timeout=2)
 
 
 def main():

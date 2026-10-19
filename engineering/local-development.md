@@ -1,6 +1,7 @@
 # Local development in VS Code
 
-Open this static-site repository as the VS Code workspace. Its
+Open either the backend or this static-site repository as the VS Code workspace.
+Both provide **Back Office: local stack**; the frontend
 [launch configuration](../.vscode/launch.json) starts the backend checkout,
 the installed Main Sequence MetaTables API, the Tau agent in local mode, and Vite together.
 
@@ -44,11 +45,18 @@ developer gateway, enables Python reload, and starts Vite with HMR. It verifies
 `Back Office ready` and opening the site. The UI currently shows the existing
 starter; document-management screens remain subsequent work.
 
-Stop the debugging session or use Ctrl+C in its terminal to stop the processes
+The VS Code **Debug Console** opens automatically. The launcher prints every
+service URL and port before startup, including API docs and MCP. Child stdout and
+stderr are forwarded with `[API]`, `[Agent]`, `[Site]`, or `[MetaTables]` prefixes.
+For an already-running shared MetaTables process, the console prints its verified
+address and reuse status; that process's existing logs remain in its original terminal.
+
+Stop the debugging session to stop the processes
 owned by that launch. A pre-existing healthy MetaTables process remains running.
 Local records persist across starts. The launcher never deletes a database.
 
-The agent runs the backend's locked `.venv/bin/ms-tau` with `TAU_LOCAL_MODE=true`,
+The agent runs the SDK-owned `api.tau.main:app` through the backend's locked Python
+and Uvicorn with `TAU_LOCAL_MODE=true`,
 the backend checkout as its workspace, and the existing Main Sequence session.
 The launcher waits for its `/ready` endpoint and verifies both helper exclusion
 flags before reporting the stack ready. Tau uses local state under the backend's
@@ -65,7 +73,8 @@ assistant rail uses the deployed-agent connection; starting Tau does not switch
 that rail to a local source. Use `--no-agent` only when deliberately testing the
 API and site without Tau.
 
-Python debugging includes subprocesses, including the API reload worker. The
+Python debugging targets the launcher. Child services run normally and their
+stdout/stderr is relayed into that same Debug Console. The
 optional **Back Office: browser debugger** configuration opens Chrome against the
 running Vite app with frontend source maps.
 
@@ -110,7 +119,7 @@ The stopped legacy launch may also own an Admin dev server; that server stops wi
 it. Back Office starts the corrected MetaTables API. Healthy pre-existing runtimes
 continue to be reused. Occupied API or Vite ports fail before additional services
 start. If VS Code terminated the launcher before child cleanup, the next launch
-stops an orphaned API or Vite process only after verifying its user, project
+stops an orphaned API, Tau agent or Vite process only after verifying its user, project
 directory, isolated process group, command, loopback host, port, and absent parent.
 Services belonging to a running launcher or another project keep the port-conflict
 error. Port checks allow recently closed connections, so immediate restarts work.

@@ -19,9 +19,10 @@
       ],
       "cwd": "${workspaceFolder}/${config:backoffice.backendPath}",
       "envFile": "${workspaceFolder}/${config:backoffice.backendPath}/.env",
-      "console": "integratedTerminal",
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
       "redirectOutput": true,
-      "subProcess": true,
+      "subProcess": false,
       "justMyCode": true,
       "serverReadyAction": {
         "pattern": "Back Office ready: (http://127\\.0\\.0\\.1:[0-9]+/)",

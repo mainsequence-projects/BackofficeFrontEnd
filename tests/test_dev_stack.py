@@ -1,11 +1,13 @@
 """Process lifecycle and readiness failures for the VS Code launcher."""
 
 import importlib.util
+import io
 import os
 import socket
 import subprocess
 import sys
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -20,6 +22,30 @@ spec.loader.exec_module(stack)
 
 
 class LocalStackTests(unittest.TestCase):
+    def test_child_stdout_and_stderr_are_relayed_with_a_service_label(self):
+        children, readers = [], []
+        output = io.StringIO()
+        with redirect_stdout(output):
+            child = stack.start_service(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; print('startup'); print('diagnostic', file=sys.stderr)",
+                ],
+                label="Agent",
+                cwd=Path.cwd(),
+                env=None,
+                children=children,
+                readers=readers,
+            )
+            child.wait(timeout=10)
+            readers[0].join(timeout=5)
+        self.assertEqual(child.returncode, 0)
+        self.assertIn("[Agent] startup", output.getvalue())
+        self.assertIn("[Agent] diagnostic", output.getvalue())
+        self.assertFalse(readers[0].is_alive())
+        self.assertTrue(child.stdout.closed)
+
     def test_global_python_relays_to_the_backend_environment(self):
         with TemporaryDirectory() as directory:
             backend = Path(directory)
@@ -263,6 +289,33 @@ class LocalStackTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "changed during cleanup"):
                 stack.recover_orphaned_services(backend, 28641, 5174)
             kill.assert_called_once_with(original.pid, stack.signal.SIGTERM)
+
+    def test_recovery_includes_an_orphaned_local_agent(self):
+        backend = Path("/example/backend")
+        process = self.orphan(backend)
+        process.cmdline.return_value = [
+            "python",
+            "-m",
+            "uvicorn",
+            "api.tau.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "28643",
+        ]
+        with (
+            patch.object(stack, "port_available", side_effect=[True, True, False]),
+            patch.object(
+                stack.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="12345\n"),
+            ),
+            patch("psutil.Process", return_value=process),
+            patch.object(stack.os, "getpgid", return_value=process.pid),
+            patch.object(stack.os, "killpg") as kill,
+        ):
+            stack.recover_orphaned_services(backend, 28641, 5174, 28643)
+            kill.assert_called_once_with(process.pid, stack.signal.SIGTERM)
 
     def test_stopping_the_stack_stops_its_owned_processes(self):
         child = subprocess.Popen(
