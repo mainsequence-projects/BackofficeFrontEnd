@@ -130,6 +130,95 @@ class LocalStackTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 stack.ensure_ports_free([listener.getsockname()[1]])
 
+    def orphan(self, backend):
+        process = Mock(pid=12345)
+        process.ppid.return_value = 1
+        process.uids.return_value = SimpleNamespace(real=os.getuid())
+        process.cwd.return_value = str(backend)
+        process.create_time.return_value = 1.0
+        process.cmdline.return_value = [
+            "python",
+            "-m",
+            "uvicorn",
+            "scripts.local_api:create_app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "28641",
+        ]
+        return process
+
+    def test_orphan_identity_requires_the_same_user_checkout_target_host_and_port(self):
+        backend = Path("/example/backend")
+        checks = dict(cwd=backend, port=28641, target="scripts.local_api:create_app")
+        process = self.orphan(backend)
+        with patch.object(stack.os, "getpgid", return_value=process.pid):
+            self.assertTrue(stack.orphaned_service(process, **checks))
+            for method, wrong, original in (
+                (process.ppid, 999, 1),
+                (
+                    process.uids,
+                    SimpleNamespace(real=os.getuid() + 1),
+                    SimpleNamespace(real=os.getuid()),
+                ),
+                (process.cwd, "/another/backend", str(backend)),
+                (process.cmdline, ["unrelated-server"], process.cmdline.return_value),
+            ):
+                method.return_value = wrong
+                self.assertFalse(stack.orphaned_service(process, **checks))
+                method.return_value = original
+            self.assertFalse(stack.orphaned_service(process, **(checks | {"port": 28642})))
+            process.cmdline.return_value[-3] = "0.0.0.0"
+            self.assertFalse(stack.orphaned_service(process, **checks))
+        with patch.object(stack.os, "getpgid", return_value=process.pid + 1):
+            self.assertFalse(stack.orphaned_service(process, **checks))
+
+    def test_recovery_stops_only_a_verified_orphan_and_preserves_live_launches(self):
+        backend = Path("/example/backend")
+        for parent, terminated in ((1, True), (999, False)):
+            process = self.orphan(backend)
+            process.ppid.return_value = parent
+            with (
+                patch.object(stack, "port_available", side_effect=[False, True]),
+                patch.object(
+                    stack.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(returncode=0, stdout="12345\n"),
+                ),
+                patch("psutil.Process", return_value=process),
+                patch.object(stack.os, "getpgid", return_value=process.pid),
+                patch.object(stack.os, "killpg") as kill,
+            ):
+                stack.recover_orphaned_services(backend, 28641, 5174)
+                if terminated:
+                    kill.assert_called_once_with(process.pid, stack.signal.SIGTERM)
+                    process.wait.assert_called_once_with(timeout=10)
+                else:
+                    kill.assert_not_called()
+
+    def test_orphan_cleanup_refuses_to_force_stop_a_reused_process_id(self):
+        import psutil
+
+        backend = Path("/example/backend")
+        original = self.orphan(backend)
+        original.wait.side_effect = psutil.TimeoutExpired(10)
+        replacement = self.orphan(backend)
+        replacement.create_time.return_value = 2.0
+        with (
+            patch.object(stack, "port_available", return_value=False),
+            patch.object(
+                stack.subprocess,
+                "run",
+                return_value=SimpleNamespace(returncode=0, stdout="12345\n"),
+            ),
+            patch("psutil.Process", side_effect=[original, replacement]),
+            patch.object(stack.os, "getpgid", return_value=original.pid),
+            patch.object(stack.os, "killpg") as kill,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "changed during cleanup"):
+                stack.recover_orphaned_services(backend, 28641, 5174)
+            kill.assert_called_once_with(original.pid, stack.signal.SIGTERM)
+
     def test_stopping_the_stack_stops_its_owned_processes(self):
         child = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True

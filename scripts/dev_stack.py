@@ -153,6 +153,75 @@ def ensure_ports_free(ports):
             )
 
 
+def orphaned_service(process, *, cwd, port, target):
+    """Only a same-user, isolated service whose original launcher has exited."""
+    if (
+        process.ppid() != 1
+        or process.uids().real != os.getuid()
+        or os.getpgid(process.pid) != process.pid
+        or Path(process.cwd()).resolve() != cwd.resolve()
+    ):
+        return False
+    command = process.cmdline()
+    if target not in command:
+        return False
+    arguments = command[command.index(target) + 1 :]
+    return any(
+        arguments[index : index + 2] == ["--port", str(port)] for index in range(len(arguments) - 1)
+    ) and any(
+        arguments[index : index + 2] == ["--host", "127.0.0.1"]
+        for index in range(len(arguments) - 1)
+    )
+
+
+def recover_orphaned_services(backend, api_port, site_port):
+    """F5 can kill the launcher without running its child cleanup."""
+    import psutil
+
+    for port, cwd, target, label in (
+        (api_port, backend, "scripts.local_api:create_app", "API"),
+        (site_port, SITE_DIR, str(SITE_DIR / "node_modules/vite/bin/vite.js"), "site"),
+    ):
+        if port_available(port):
+            continue
+        listeners = subprocess.run(
+            ["lsof", "-nP", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if listeners.returncode != 0:
+            continue
+        for value in set(listeners.stdout.split()):
+            try:
+                process = psutil.Process(int(value))
+                created = process.create_time()
+                if not orphaned_service(process, cwd=cwd, port=port, target=target):
+                    continue
+                print(
+                    f"Stopping orphaned Back Office {label} from an ended debug session (PID {process.pid}).",
+                    flush=True,
+                )
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=10)
+                except psutil.TimeoutExpired:
+                    current = psutil.Process(process.pid)
+                    if current.create_time() != created or not orphaned_service(
+                        current, cwd=cwd, port=port, target=target
+                    ):
+                        raise RuntimeError(
+                            "The orphaned service changed during cleanup; retry."
+                        ) from None
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait(timeout=5)
+            except (psutil.NoSuchProcess, ProcessLookupError):
+                continue
+            except (psutil.AccessDenied, PermissionError):
+                # An unverifiable listener keeps the normal port-conflict error.
+                continue
+
+
 def wait_for(check, children, label, timeout=90):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -240,6 +309,7 @@ def run(args):
     ports = [args.api_port, args.site_port]
     if not existing:
         ports.append(args.metatables_port)
+    recover_orphaned_services(backend, args.api_port, args.site_port)
     ensure_ports_free(ports)
     children = []
 

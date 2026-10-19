@@ -91,7 +91,11 @@ configuration fails with an error instead of selecting another database.
 The stopped legacy launch may also own an Admin dev server; that server stops with
 it. Back Office starts the corrected MetaTables API. Healthy pre-existing runtimes
 continue to be reused. Occupied API or Vite ports fail before additional services
-start. Port checks allow recently closed connections, so immediate restarts work.
+start. If VS Code terminated the launcher before child cleanup, the next launch
+stops an orphaned API or Vite process only after verifying its user, project
+directory, isolated process group, command, loopback host, port, and absent parent.
+Services belonging to a running launcher or another project keep the port-conflict
+error. Port checks allow recently closed connections, so immediate restarts work.
 Adjust the launch arguments and browser-debugger URL together when changing ports.
 
 The backend pins `mainsequence==9.0.29` and `mainsequence-metatable==0.1.49`.
