@@ -26,7 +26,7 @@
     "test:comparisons": "node tests/comparisons.mjs"
   },
   "dependencies": {
-    "@dev-mainsequence/command-center-ai": "0.0.15",
+    "@dev-mainsequence/command-center-ai": "0.0.16",
     "@dev-mainsequence/command-center-sdk": "0.5.18",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

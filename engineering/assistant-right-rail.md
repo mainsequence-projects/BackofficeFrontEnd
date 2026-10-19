@@ -1,16 +1,25 @@
 # Back Office assistant right rail
 
 Status: frontend implemented with Command Center SDK 0.5.18 and Command Center AI
-0.0.15 on 2026-10-19. The API's ADR 0002 owns the read-only Back Office Agent.
+0.0.16 on 2026-10-19. The API's ADR 0002 owns the read-only Back Office Agent.
 Local chat was verified through the SDK proxy with a real GPT-5.6 Luna response.
 Hosted conversation verification still awaits that Agent and its discovery endpoint.
 
-File-support release check on 2026-10-19: the npm registry still lists SDK 0.5.18
-and AI 0.0.15 as latest, and `application update-sdk --dry-run` proposes no change.
-The installed AI conversation contract explicitly excludes files and attachments.
-The backend is now pinned to TAU SDK 2.0.19, whose chat parser still extracts only
-text and exposes no attachment upload route. File input needs compatible published
-package releases; the application keeps the package-owned composer and transport.
+File-support release check on 2026-10-19: upgraded AI from 0.0.15 to the published
+0.0.16 and TAU SDK from 2.0.19 to 2.0.20. SDK 0.5.18 remains latest, and
+`application update-sdk --dry-run` proposes no SDK change. AI 0.0.16's changelog
+states that its attachment ADR 018 is documentation only and no attachment feature
+ships. Its composer still exposes no file input; TAU still extracts text only and
+has no attachment upload route.
+
+Local verification used the real application, SDK proxy and upgraded Tau runtime.
+Text chat returned `LOCAL SDK CHECK OK`. A synthetic file-only payload returned
+HTTP 400 (`Request does not contain a user message`); a text-plus-file request
+returned `NO ATTACHMENT CONTENT`, and the file's token was absent from history.
+Application checks, the combined app/docs build and both assistant browser suites
+passed. Attachments remain unavailable pending the package-owned capability,
+upload/reference/history contracts and composer implementation described in ADR 018;
+the application keeps the package-owned composer and transport.
 
 Top-level loopback development uses `createLocalAgentSource` and the SDK's
 `localAgentProxy` at `/__agent__`, targeting Back Office Tau on port 28643 (or
@@ -96,11 +105,11 @@ the host theme and package frame without recreating its chrome.
 ## Dependencies and backend contract
 
 1. Recheck the AI package's public exports and peer ranges before implementation.
-   Version 0.0.15 accepts SDK `^0.5.3` and React/React DOM `>=18 <20`, which
+   Version 0.0.16 accepts SDK `^0.5.3` and React/React DOM `>=18 <20`, which
    includes the installed SDK 0.5.18 and React 19. Install one compatible AI
    package, refresh its packaged skills with `command-center-ai skills install`,
    and use `command-center-sdk code-repository sync` to refresh the root lockfile.
-   Command Center AI 0.0.15 is now pinned beside SDK 0.5.18; its packaged skills
+   Command Center AI 0.0.16 is now pinned beside SDK 0.5.18; its packaged skills
    and the root lockfile have been refreshed.
 2. Implement and deploy the backend's repository-owned `ms-tau-sdk` reconciliation
    agent, business REST/MCP operations, and readiness contract. Reuse the backend
@@ -194,5 +203,5 @@ Acceptance checks cover:
 
 Package guidance used: `compose-command-center-ai-rail`,
 `mount-agent-conversation`, and `connect-command-center-ai-to-the-platform` from
-Command Center AI 0.0.15, plus the installed SDK application-shell and iframe
+Command Center AI 0.0.16, plus the installed SDK application-shell and iframe
 skills. Re-read the installed versions when implementing.
