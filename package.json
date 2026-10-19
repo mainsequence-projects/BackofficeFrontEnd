@@ -19,7 +19,8 @@
     "docs:dev": "npm run docs:sync && docusaurus start documentation --host 127.0.0.1 --port 3011 --no-open",
     "build:docs": "npm run docs:sync && docusaurus build documentation --out-dir ../dist/docs",
     "test:renewals": "node tests/renewals.mjs",
-    "test:assistant": "node tests/assistant.mjs"
+    "test:assistant": "node tests/assistant.mjs",
+    "test:docs:local": "node tests/local-docs.mjs"
   },
   "dependencies": {
     "@dev-mainsequence/command-center-ai": "0.0.15",

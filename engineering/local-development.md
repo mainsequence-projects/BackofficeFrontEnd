@@ -41,9 +41,15 @@ the application does not execute migrations.
 
 After local migrations succeed, it starts the real Back Office app through a
 developer gateway, enables Python reload, and starts Vite with HMR. It verifies
-`/api/` through the Vite proxy, including the developer identity, before printing
-`Back Office ready` and opening the site. The UI currently shows the existing
-starter; document-management screens remain subsequent work.
+`/api/readyz` through the Vite proxy, including the developer identity and document
+catalog, before printing `Back Office ready` and opening the site. The app provides
+People, Documents, Document Sets, Reconciliation, and the assistant.
+
+The Documentation button opens the real Docusaurus guide at `/docs/`. Vite builds
+it on first use and rebuilds it after guide-source changes; no separate docs server
+or additional port is required. `npm run test:docs:local` verifies the six guide
+pages, their JavaScript assets, and the local route's path/method handling on an
+isolated Vite port.
 
 The VS Code **Debug Console** opens automatically. The launcher prints every
 service URL and port before startup, including API docs and MCP. Child stdout and

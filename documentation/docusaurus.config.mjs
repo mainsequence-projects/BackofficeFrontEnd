@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 const applicationPackage = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 );
-const title = process.env.DOCS_SITE_TITLE || applicationPackage.displayName || applicationPackage.name;
+const title = process.env.DOCS_SITE_TITLE || applicationPackage.displayName || "Back Office";
 const url = exactSiteOrigin(process.env.DOCS_SITE_URL || "http://localhost");
 
 /** @type {import('@docusaurus/types').Config} */
