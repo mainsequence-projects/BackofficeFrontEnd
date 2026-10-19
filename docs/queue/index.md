@@ -28,8 +28,8 @@ selected version when new Document Set versions are published.
 1. Select **Assigned to me**, **Unassigned**, or **All accessible cases** and a case type. Search by the subject's name or reference.
 2. Open a case. Its subject appears at the top; the **Assigned reviewers** section lists staff separately.
 3. As an authorized reviewer, choose **Assign to me** to take responsibility. Several reviewers can join the same case independently. **Leave case** removes only your own responsibility.
-4. Select a linked document or **Inspect page** on a finding to read its source alongside reader values and the policy result.
-5. Enter a **Review reason**, then accept or reject the selected submitted revision. Correct incomplete drafts through **Correct attributes**.
+4. In **Required evidence** on the left, find a requirement and its linked documents, review status, and finding. Select a document to open its own source, field evidence, and revision review on the right. Its current states appear in a compact row at the top. A requirement without a document shows **No linked document**. For a cross-document check, choose **Inspect page** to open the cited document and value.
+5. Edit **Document fields** alongside the source. Missing required values have a red border that clears when filled; empty optional fields are yellow advisories and do not prevent completion. **Save document fields** creates a draft revision, including incomplete drafts. Field drafts remain when you switch documents. Save or discard them before running checks. Submit the saved draft with **Submit for review**, then enter a **Review reason** to accept or reject that submitted revision.
 6. Choose **Run checks** to retain a fresh evaluation. When background processing finishes, choose **View evaluation**.
 7. Open **Control report** and use **Print / save PDF** to export the retained findings.
 
@@ -39,7 +39,9 @@ A **subject** is the person whose information appears in the documents. A **revi
 
 The accessible-case total reflects your search and responsibility filters. State cards, distribution and frequent top findings count only the current page. Page filters do not search other pages. **Checks satisfied** describes evidence requirements; it does not approve a loan or account.
 
-The workspace shows current requirements. Outdated retained comparisons are marked and excluded from current findings. **Subject activity** includes changes across that subject's cases. The printable report retains the evaluation's original findings and is not a signed protocol.
+Choose **Subject details**, then **Activity**, for a compact list of changes across that subject's cases. The review workspace focuses on the current evidence. Its navigation shows the current finding and matching case-linked documents for each requirement. A linked document can still be a draft, need review, or fail a requirement; its presence alone does not satisfy the policy. Missing evidence remains visible. Field names appear as readable labels, such as **Full name**.
+
+Outdated retained comparisons are marked and excluded from current findings. The printable report retains the evaluation's original findings and is not a signed protocol.
 
 ## If something goes wrong
 

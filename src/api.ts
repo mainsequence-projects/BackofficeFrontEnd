@@ -25,6 +25,16 @@ export interface DocumentType {
   name: string;
   description: string;
 }
+
+export function latestDocumentTypes(types: DocumentType[]): DocumentType[] {
+  const latest = new Map<string, DocumentType>();
+  for (const type of types) {
+    const previous = latest.get(type.document_type);
+    if (!previous || type.schema_version > previous.schema_version)
+      latest.set(type.document_type, type);
+  }
+  return [...latest.values()];
+}
 export interface Catalog {
   personSchema: Schema;
   types: DocumentType[];
@@ -79,7 +89,7 @@ export class Api {
       ...init,
       headers: {
         Accept: "application/json",
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(init.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
         ...init.headers,
       },
     };

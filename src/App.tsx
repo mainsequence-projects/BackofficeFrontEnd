@@ -12,7 +12,7 @@ import {
   mainSequenceSpaceTheme,
   quartzLightTheme,
 } from "@dev-mainsequence/command-center-sdk/theme";
-import { api, ApiError, errorText, type Catalog } from "./api";
+import { api, ApiError, errorText, latestDocumentTypes, type Catalog } from "./api";
 import { AssistantWorkspace } from "./assistant/Assistant";
 import { CaseQueue, CaseWorkspace } from "./CaseDashboard";
 import { Admin } from "./Admin";
@@ -139,7 +139,7 @@ export default function App() {
             setCatalog({
               viewer: viewer as Catalog["viewer"],
               personSchema,
-              types: types.items,
+              types: latestDocumentTypes(types.items),
               sets: sets.items,
             });
             setPhase(3);

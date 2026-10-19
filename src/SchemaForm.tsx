@@ -34,6 +34,9 @@ interface Props {
   onChange: (value: Record<string, any>) => void;
   disabled?: boolean;
   prefix?: string;
+  highlightMissing?: boolean;
+  expandMissing?: boolean;
+  showDescriptions?: boolean;
 }
 export function SchemaForm({
   schema,
@@ -41,6 +44,9 @@ export function SchemaForm({
   onChange,
   disabled,
   prefix = "form",
+  highlightMissing = false,
+  expandMissing = false,
+  showDescriptions = true,
 }: Props) {
   return (
     <div className="field-grid">
@@ -61,6 +67,9 @@ export function SchemaForm({
             disabled={disabled}
             path={`${prefix}.${key}`}
             label={field.title ?? human(key)}
+            highlightMissing={highlightMissing}
+            expandMissing={expandMissing}
+            showDescriptions={showDescriptions}
           />
         ))}
     </div>
@@ -76,6 +85,9 @@ interface FieldProps {
   disabled?: boolean;
   path: string;
   label: string;
+  highlightMissing: boolean;
+  expandMissing: boolean;
+  showDescriptions: boolean;
 }
 function SchemaField({
   schema,
@@ -86,16 +98,25 @@ function SchemaField({
   disabled,
   path,
   label,
+  highlightMissing,
+  expandMissing,
+  showDescriptions,
 }: FieldProps) {
   const field = resolve(schema, root);
   const title = schema.title ?? field.title ?? label;
-  const description = schema.description ?? field.description;
+  const description = showDescriptions
+    ? (schema.description ?? field.description)
+    : undefined;
+  const empty = value == null || (typeof value === "string" && !value.trim());
+  const missing = highlightMissing && required &&
+    (empty || (Array.isArray(value) && value.length < (field.minItems ?? 0)));
+  const optionalMissing = highlightMissing && !required && empty;
   if (field.type === "object" || field.properties) {
-    if (value == null && !required)
+    if (value == null && !required && !expandMissing)
       return (
         <div className="structured-field">
           <strong>{title}</strong>
-          <p className="muted">{description}</p>
+          {description && <p className="muted">{description}</p>}
           <Button size="small" disabled={disabled} onClick={() => onChange({})}>
             Add {title.toLowerCase()}
           </Button>
@@ -107,7 +128,7 @@ function SchemaField({
           {title}
           {required ? " *" : ""}
         </legend>
-        <p className="muted">{description}</p>
+        {description && <p className="muted">{description}</p>}
         <div className="field-grid">
           {Object.entries(field.properties ?? {}).map(([key, node]) => (
             <SchemaField
@@ -116,10 +137,15 @@ function SchemaField({
               root={root}
               value={value?.[key]}
               onChange={(next) => onChange({ ...value, [key]: next })}
-              required={field.required?.includes(key)}
+              required={
+                (required || value != null) && field.required?.includes(key)
+              }
               disabled={disabled}
               path={`${path}.${key}`}
               label={human(key)}
+              highlightMissing={highlightMissing}
+              expandMissing={expandMissing}
+              showDescriptions={showDescriptions}
             />
           ))}
         </div>
@@ -133,12 +159,17 @@ function SchemaField({
   }
   if (field.type === "array")
     return (
-      <fieldset className="structured-field" disabled={disabled}>
+      <fieldset
+        className="structured-field"
+        disabled={disabled}
+        data-missing={missing || undefined}
+        aria-invalid={missing || undefined}
+      >
         <legend>
           {title}
           {required ? " *" : ""}
         </legend>
-        <p className="muted">{description}</p>
+        {description && <p className="muted">{description}</p>}
         {(Array.isArray(value) ? value : []).map((item, index) => (
           <div className="array-item" key={index}>
             <SchemaField
@@ -154,6 +185,9 @@ function SchemaField({
               disabled={disabled}
               path={`${path}.${index}`}
               label={`${title} ${index + 1}`}
+              highlightMissing={highlightMissing}
+              expandMissing={expandMissing}
+              showDescriptions={showDescriptions}
             />
             <Button
               size="small"
@@ -196,6 +230,10 @@ function SchemaField({
           : description
       }
       controlId={path}
+      error={missing ? "Missing value" : undefined}
+      className={missing ? "schema-field--missing" : optionalMissing ? "schema-field--optional-missing" : undefined}
+      role={choice ? "group" : undefined}
+      aria-invalid={missing || undefined}
     >
       {choice ? (
         <ResourcePicker
@@ -245,7 +283,8 @@ function SchemaField({
             );
           }}
         />
-      )}{" "}
+      )}
+      {optionalMissing && <small className="schema-optional-hint">Optional — not provided</small>}
     </Field>
   );
 }

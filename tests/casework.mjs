@@ -5,6 +5,10 @@ import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createServer } from "vite";
 import { chromium } from "playwright";
+import {
+  assertCommandCenterPageLayout,
+  COMMAND_CENTER_LAYOUT_VIEWPORTS,
+} from "@dev-mainsequence/command-center-sdk/layout/testing";
 const backend = resolve(
   "../backofficebackend-75d8081d-5e8f-4dc6-ab09-60bc832d0118",
 );
@@ -55,6 +59,35 @@ let policy = policies[0],
   memberRevision = 0,
   reviewed = false,
   canReview = true;
+let editRevision = 2,
+  editedPayload,
+  editingDraft = false,
+  rejectEdit = false;
+const fieldSchema = {
+  type: "object",
+  required: ["full_name"],
+  properties: {
+    document_type: { type: "string", const: "loan_contract" },
+    full_name: { type: "string", title: "Full name" },
+    issue_date: {
+      anyOf: [{ type: "string", format: "date" }, { type: "null" }],
+      title: "Issue date",
+    },
+    dependents: { type: "integer", title: "Dependents" },
+    verified: { type: "boolean", title: "Verified" },
+    category: {
+      type: "string",
+      title: "Category",
+      enum: ["current", "expired"],
+    },
+    note: { type: "string", title: "Note" },
+    address: {
+      type: "object",
+      title: "Address",
+      properties: { city: { type: "string", title: "City" } },
+    },
+  },
+};
 const sourceBytes = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800"><rect width="600" height="800" fill="white"/><g fill="#182434" font-family="sans-serif"><text x="45" y="40" font-size="10">SYNTHETIC TEST DOCUMENT · No real customer information</text><text x="45" y="115" font-size="20" font-weight="bold">EMPLOYMENT AND INCOME</text><text x="45" y="145" font-size="14">Confirmation of monthly net income</text><rect x="45" y="195" width="510" height="320" fill="#f3f5f7" stroke="#83909c"/><text x="65" y="228" font-size="12">Employee</text><text x="65" y="258" font-size="19">Eva Horáková</text><text x="65" y="310" font-size="12">Employer</text><text x="65" y="340" font-size="18">Example Energy s.r.o.</text><text x="65" y="395" font-size="12">Monthly net income</text><text x="65" y="432" font-size="25" font-weight="bold">41 000,00 CZK</text><text x="65" y="485" font-size="12">Issued 25 September 2026</text><rect x="330" y="590" width="225" height="100" fill="none" stroke="#83909c"/><text x="345" y="615" font-size="11">Employer signature</text></g></svg>`,
 );
@@ -123,13 +156,12 @@ function findings() {
     },
     {
       uid: id(21),
-      requirement_key: "identity_document",
-      status: "satisfied",
+      requirement_key: "identity",
+      status: "missing",
       mandatory: true,
-      explanation:
-        "The current accepted identity revision satisfies the requirement.",
+      explanation: "No identity document is linked to this requirement.",
       document_references: [],
-      next_action: "No action needed.",
+      next_action: "Add an identity document.",
     },
     {
       uid: id(22),
@@ -147,10 +179,24 @@ function workspace() {
     uid,
     person_uid: subject,
     document_type: i ? "employer_confirmation" : "loan_contract",
-    revision: 2,
-    status: "submitted",
-    accepted: i === 0 || reviewed,
-    review_status: i === 0 || reviewed ? "accepted" : "pending",
+    schema_version: 1,
+    revision: i ? editRevision : 2,
+    status: i && editingDraft ? "draft" : "submitted",
+    payload:
+      i && editedPayload
+        ? editedPayload
+        : {
+            document_type: i ? "employer_confirmation" : "loan_contract",
+            full_name: "Eva Horáková",
+            issue_date: null,
+            dependents: 0,
+            verified: false,
+            note: "",
+            address: null,
+          },
+    accepted: i === 0 || (reviewed && !editingDraft),
+    review_status:
+      i === 0 || (reviewed && !editingDraft) ? "accepted" : "pending",
     latest_review:
       i === 0
         ? { decision_sequence: 1, reason: "Verified source." }
@@ -309,7 +355,7 @@ function queue(url) {
     has_more: offset + 10 < total,
   };
 }
-await page.route("**/api/**", async (route) => {
+async function mockApi(route) {
   const req = route.request(),
     url = new URL(req.url()),
     path = url.pathname.slice(4);
@@ -326,8 +372,42 @@ await page.route("**/api/**", async (route) => {
   else if (path === "/person-schema")
     result = { type: "object", properties: {} };
   else if (path === "/document-types") result = { items: [] };
-  else if (path === "/document-sets") result = { items: policies };
+  else if (path.startsWith("/document-types/") && path.endsWith("/schema")) {
+    assert.equal(url.searchParams.get("version"), "1");
+    result = { canonical_schema: fieldSchema };
+  } else if (path === `/documents/${right}/draft`) {
+    assert.equal(req.method(), "PATCH");
+    const body = req.postDataJSON();
+    assert.equal(body.expected_revision, editRevision);
+    assert.deepEqual(body.raw_document_refs, [
+      { raw_document_uid: citation(right).source_id },
+    ]);
+    if (rejectEdit) {
+      status = 409;
+      result = { detail: "stale_document_revision" };
+    } else {
+      editedPayload = body.payload;
+      editRevision++;
+      editingDraft = true;
+      stale = true;
+      result = { uid: right, revision: editRevision };
+    }
+  } else if (path === `/documents/${right}/submit`) {
+    assert.equal(req.postDataJSON().expected_revision, editRevision);
+    editingDraft = false;
+    result = { uid: right, revision: editRevision };
+  } else if (path === "/document-sets") result = { items: policies };
   else if (path === "/case-types") result = { items: caseTypes };
+  else if (path === `/persons/${subject}`)
+    result = { ...workspace().subject, revision: 1 };
+  else if (path === `/persons/${subject}/history`)
+    result = workspace().subject_history;
+  else if (path === `/persons/${subject}/documents`)
+    result = { items: workspace().documents };
+  else if (
+    [`/persons/${subject}/cases`, `/persons/${subject}/sources`].includes(path)
+  )
+    result = { items: [] };
   else if (path === "/persons")
     result = { items: [{ uid: subject, full_name: "Eva Horáková" }] };
   else if (path === "/cases" && req.method() === "POST") {
@@ -388,7 +468,7 @@ await page.route("**/api/**", async (route) => {
               ],
             },
             {
-              pointer: "/employee_name",
+              pointer: "/full_name",
               agreement: "exact",
               candidates: [
                 {
@@ -428,9 +508,21 @@ await page.route("**/api/**", async (route) => {
     contentType: "application/json",
     body: JSON.stringify(result),
   });
-});
+}
+await page.route("**/api/**", mockApi);
 async function visible(selector) {
   await page.locator(selector).waitFor({ state: "visible" });
+}
+// Let the SDK viewport subscription finish its responsive render before measuring.
+function settledLayoutPage(target) {
+  return {
+    viewportSize: () => target.viewportSize(),
+    evaluate: (fn, arg) => target.evaluate(fn, arg),
+    async setViewportSize(size) {
+      await target.setViewportSize(size);
+      await target.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    },
+  };
 }
 async function geometry() {
   const bad = await page.evaluate(() =>
@@ -477,8 +569,160 @@ try {
     .getByText("41000.00 CZK", { exact: true })
     .waitFor();
   assert.match(
-    await page.locator(".case-middle-column > section").first().innerText(),
+    await page.locator(".case-document-summary").innerText(),
     /Employer confirmation/,
+  );
+  await visible(".source-preview img");
+  await page.getByRole("textbox", { name: "Full name", exact: true }).waitFor();
+  assert(
+    !/full_name|monthly_net_income/.test(
+      await page.locator(".case-evidence-detail").innerText(),
+    ),
+  );
+  const nav = page.locator(".case-evidence-navigation");
+  const fields = page.getByRole("form", {
+    name: "Document fields",
+    exact: true,
+  });
+  const issue = fields.getByLabel("Issue date", { exact: true });
+  assert.equal(await issue.getAttribute("aria-invalid"), null);
+  const missingBorder = await issue.evaluate((input) => ({
+    border: getComputedStyle(input).borderColor,
+    error: getComputedStyle(
+      input.closest(".cc-field").querySelector(".schema-optional-hint"),
+    ).color,
+  }));
+  assert.equal(
+    missingBorder.border,
+    missingBorder.error,
+    "Missing optional input must use the advisory color.",
+  );
+  assert.equal(
+    await fields
+      .getByLabel("Category", { exact: true })
+      .evaluate((control) =>
+        control.closest(".cc-field").getAttribute("aria-invalid"),
+      ),
+    null,
+  );
+  assert.equal(
+    await fields
+      .getByLabel("Category", { exact: true })
+      .evaluate((control) => getComputedStyle(control).borderColor),
+    missingBorder.border,
+    "Missing optional selections must also have advisory borders.",
+  );
+  assert.notEqual(
+    await fields
+      .getByLabel("Dependents", { exact: true })
+      .getAttribute("aria-invalid"),
+    "true",
+    "Zero is a supplied value.",
+  );
+  assert.notEqual(
+    await fields
+      .getByLabel("Verified", { exact: true })
+      .getAttribute("aria-invalid"),
+    "true",
+    "False is a supplied value.",
+  );
+  assert.equal(
+    await fields
+      .getByLabel("City", { exact: true })
+      .getAttribute("aria-invalid"),
+    null,
+    "Missing optional nested fields must not be invalid.",
+  );
+  await page.locator(".case-document-detail-grid").screenshot({ path: resolve(output, "document-fields-editable.png") });
+  await issue.fill("2026-10-01");
+  assert.notEqual(await issue.getAttribute("aria-invalid"), "true");
+  assert.notEqual(
+    await issue.evaluate((input) => getComputedStyle(input).borderColor),
+    missingBorder.border,
+  );
+  assert(
+    await page
+      .getByRole("button", { name: "Run checks", exact: true })
+      .isDisabled(),
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Accept revision", exact: true })
+      .count(),
+    0,
+  );
+  await nav
+    .locator(`[data-requirement-key="${policy.comparisons[0].key}"]`)
+    .getByRole("button", { name: /^Loan contract Revision/ })
+    .click();
+  await fields
+    .getByRole("button", { name: "Save document fields", exact: true })
+    .waitFor();
+  assert.equal(
+    await fields.getByLabel("Issue date", { exact: true }).inputValue(),
+    "",
+  );
+  await nav
+    .locator('[data-requirement-key="income_document"]')
+    .getByRole("button", { name: /^Employer confirmation/ })
+    .click();
+  await issue.waitFor();
+  assert.equal(
+    await issue.inputValue(),
+    "2026-10-01",
+    "Switching documents must preserve the previous document's field draft.",
+  );
+  await fields
+    .getByRole("button", { name: "Discard field changes", exact: true })
+    .click();
+  assert.equal(await issue.inputValue(), "");
+  assert.equal(await issue.getAttribute("aria-invalid"), null);
+
+  assert.match(
+    await nav.locator('[data-requirement-key="income_document"]').innerText(),
+    /Employer confirmation/,
+  );
+  assert.match(
+    await nav.locator('[data-requirement-key="identity"]').innerText(),
+    /No linked document.*National identity card or Passport/,
+  );
+  assert.equal(
+    await page
+      .getByRole("heading", { name: "Subject activity", exact: true })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await page.locator(".case-processing-evidence, .case-pipeline").count(),
+    0,
+  );
+  assert.match(
+    await page.locator(".case-document-states").innerText(),
+    /Extraction retained/,
+  );
+  await nav
+    .locator('[data-requirement-key="identity"]')
+    .getByRole("button", { name: /^Identity/ })
+    .click();
+  await page.locator(".case-no-document").waitFor();
+  assert.equal(
+    await page.locator(".case-selected-document").count(),
+    0,
+    "A missing requirement must not show the previous requirement's document.",
+  );
+  await nav
+    .locator('[data-requirement-key="income_document"]')
+    .getByRole("button", { name: /^Employer confirmation/ })
+    .click();
+  assert.equal(
+    await page
+      .locator(".case-selected-document")
+      .getAttribute("data-document-uid"),
+    right,
+  );
+  assert.equal(
+    await page.locator(".case-selected-document .case-document-review").count(),
+    1,
   );
   await visible(".source-preview img");
   await geometry();
@@ -495,6 +739,11 @@ try {
   await page.screenshot({
     path: resolve(output, "review-light.png"),
     fullPage: true,
+  });
+  await assertCommandCenterPageLayout(settledLayoutPage(page), {
+    viewports: COMMAND_CENTER_LAYOUT_VIEWPORTS.filter(
+      (size) => size.pointer === "fine",
+    ),
   });
   await page.getByLabel("Review reason").fill("Checked cited source.");
   await page
@@ -553,6 +802,59 @@ try {
     path: resolve(output, "review-dark.png"),
     fullPage: true,
   });
+  for (const theme of ["main-sequence", "quartz-light"]) {
+    const context = await browser.newContext({
+      hasTouch: true,
+      isMobile: true,
+    });
+    const responsive = await context.newPage();
+    await responsive.route("**/api/**", mockApi);
+    await responsive.goto(
+      `http://127.0.0.1:15191/review/${assignment}?theme=${theme}`,
+    );
+    await responsive
+      .getByRole("textbox", { name: "Full name", exact: true })
+      .waitFor();
+    try {
+      await assertCommandCenterPageLayout(settledLayoutPage(responsive), {
+        viewports: COMMAND_CENTER_LAYOUT_VIEWPORTS.filter(
+          (size) => size.pointer === "coarse",
+        ),
+      });
+    } catch (error) {
+      await responsive.setViewportSize({ width: 320, height: 568 });
+      console.log(
+        await responsive.evaluate(() =>
+          Array.from(document.querySelectorAll(".case-selected-document *"))
+            .filter((el) => el.getBoundingClientRect().right > innerWidth)
+            .map((el) => ({
+              tag: el.tagName,
+              class: el.className,
+              width: el.getBoundingClientRect().width,
+              right: el.getBoundingClientRect().right,
+              min: getComputedStyle(el).minWidth,
+            }))
+            .slice(0, 30),
+        ),
+      );
+      await responsive.screenshot({
+        path: resolve(output, "fields-phone-failure.png"),
+        fullPage: false,
+      });
+      throw new Error(error.message);
+    }
+    await responsive.setViewportSize({ width: 375, height: 812 });
+    await responsive
+      .locator('[data-requirement-key="identity"]')
+      .getByRole("button", { name: /^Identity/ })
+      .click();
+    await responsive.locator(".case-no-document").waitFor();
+    await responsive.screenshot({
+      path: resolve(output, `missing-evidence-phone-${theme}.png`),
+      fullPage: false,
+    });
+    await context.close();
+  }
   await page.setViewportSize({ width: 390, height: 844 });
   await geometry();
   await page.screenshot({
@@ -611,17 +913,33 @@ try {
   assert(
     requests.some((r) => r.path === "/cases" && r.query.includes("search=Eva")),
   );
-  await page.getByRole("button", {name: "Reviewer responsibility", exact: true}).click();
-  await page.getByRole("option", {name: "All accessible cases", exact: true}).click();
+  await page
+    .getByRole("button", { name: "Reviewer responsibility", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "All accessible cases", exact: true })
+    .click();
   await page.getByText("1–10 of 12").waitFor();
-  await page.getByRole("button", {name: "Case type", exact: true}).click();
-  await page.getByRole("option", {name: "New loan", exact: true}).click();
+  await page.getByRole("button", { name: "Case type", exact: true }).click();
+  await page.getByRole("option", { name: "New loan", exact: true }).click();
   await page.getByText("1–6 of 6").waitFor();
   assert.equal(await page.locator(".case-table tbody tr").count(), 6);
-  await page.getByRole("button", {name: "Case type", exact: true}).click();
-  await page.getByRole("option", {name: "Account opening", exact: true}).click();
-  await page.waitForFunction(() => [...document.querySelectorAll(".case-table tbody tr")].every(row => row.textContent.includes("Account opening")));
-  assert(requests.some(r => r.path === "/cases" && r.query.includes("case_type_key=account_opening")));
+  await page.getByRole("button", { name: "Case type", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Account opening", exact: true })
+    .click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll(".case-table tbody tr")].every((row) =>
+      row.textContent.includes("Account opening"),
+    ),
+  );
+  assert(
+    requests.some(
+      (r) =>
+        r.path === "/cases" &&
+        r.query.includes("case_type_key=account_opening"),
+    ),
+  );
   assert(!requests.some((r) => r.path === "/persons"));
   await page.setViewportSize({ width: 1920, height: 1200 });
   await page.getByRole("button", { name: "New case", exact: true }).click();
@@ -667,6 +985,25 @@ try {
   await createButton.click();
   await page.waitForURL(/\/review\//);
   assert(requests.some((r) => r.path === "/cases" && r.method === "POST"));
+  await page
+    .getByRole("button", { name: "Subject details", exact: true })
+    .click();
+  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Subject activity", exact: true })
+    .waitFor();
+  assert.equal(await page.locator("table tbody tr").count(), 3);
+  assert.equal(await page.locator("table thead th").count(), 2);
+  assert.match(await page.locator("table").innerText(), /Document reviewed/);
+  assert(
+    !/document\.reviewed|assignment\.evaluated/.test(
+      await page.locator("table").innerText(),
+    ),
+  );
+  await page.screenshot({
+    path: resolve(output, "subject-activity-list.png"),
+    fullPage: false,
+  });
   assert.deepEqual(errors, []);
   console.log(
     "Case dashboards passed: queue pagination/search, distinct subject/staff, multi-reviewer membership, cited source selection, revision review, retained report, stale comparison exclusion, async checks, both workflows, permissions, light/dark/mobile.",

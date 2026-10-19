@@ -392,24 +392,25 @@ export function PersonPage({
         )}
         {selected === "history" && (
           <ResourceListPage
-            definition={staticDefinition("history", "Case activity", events, [
+            definition={{ ...staticDefinition("history", "Subject activity", events, [
               {
                 id: "action",
                 header: "Action",
                 importance: "primary",
-                getValue: (e) => human(e.action),
+                getValue: (e) => human(e.action.replaceAll(".", " ")),
               },
               {
                 id: "occurred_at",
                 header: "Recorded",
                 importance: "secondary",
-                getValue: (e) => new Date(e.occurred_at).toLocaleString(),
+                getValue: (e) => recordedTime(e.occurred_at),
               },
-            ])}
+            ]), itemLabel: "events" }}
             embedded
+            pageSize={Math.max(events.length, 1)}
             searchable={false}
-            tablePresentation="auto"
-            emptyContent="No case activity is available."
+            tablePresentation="table"
+            emptyContent="No subject activity is available."
           />
         )}
       </ResourceDetailShell>
@@ -458,6 +459,8 @@ function UploadDocument({
         onSubmit={(e) => {
           e.preventDefault();
           void action.run(async () => {
+            const documentType = catalog.types.find((t) => t.document_type === kind);
+            if (!documentType) throw new Error("Choose an available document type.");
             let sourceUid = source;
             if (file)
               sourceUid = (await uploadFile(personUid, file, setProgress)).uid;
@@ -467,7 +470,7 @@ function UploadDocument({
               );
             const doc = await api.command(`/persons/${personUid}/documents`, {
               document_type: kind,
-              schema_version: 1,
+              schema_version: documentType.schema_version,
               payload: { document_type: kind },
               raw_document_refs: [{ raw_document_uid: sourceUid }],
             });
@@ -980,6 +983,8 @@ export function DocumentPage({
                   value={payload}
                   onChange={setPayload}
                   disabled={action.pending || retained}
+                  highlightMissing
+                  expandMissing
                 />
                 {!retained && (
                   <div className="actions">

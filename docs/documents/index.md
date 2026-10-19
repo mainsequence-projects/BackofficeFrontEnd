@@ -41,11 +41,35 @@ document can be linked to an assignment under the person's **Requirements** tab.
 
 ## Understand what you see
 
+Document attributes are editable inputs. Missing required values have a red border, which clears when you supply a value. Empty optional fields are yellow and labelled “Optional — not provided”; they do not prevent completion. You can save incomplete drafts; submission applies the document's required-field rules. The case review workspace provides the same editing controls under **Document fields**.
+
 Submission and review are separate. A draft can be incomplete. Submission
 validates required information and freezes that revision. A pending review means
 no decision is recorded for that revision. Acceptance applies only to the
 reviewed revision. Saving a correction creates a new draft that requires its own
 submission and review.
+
+Leave optional information blank when it is not printed. For example, an identity
+card does not need an issue date; a newly created payslip can omit gross pay while
+still recording net pay and its currency. New documents also allow an absent
+utility category, permit category, loan contract number or employer income basis.
+External questionnaires can omit an outflow estimate, completion time and form
+version. Never enter zero or invent a date to make a document complete.
+
+The accepted happy-case examples determine which information is obligatory. A
+new national identity card can omit issuing country and a separate validity category;
+its expiry date still supports the validity check. A bank statement can omit bank
+name and a separate account currency, but any amount you enter still needs its
+currency. A tax certificate can record the authority's arrears statement without
+requiring a duplicate word-for-word transcription. Missing validity evidence
+still needs resolution, and absent tax wording never means the person has no debt.
+
+New documents use the latest available requirements. Existing documents retain
+the requirements under which they were created; recreate an older draft to use
+the relaxed fields. Case requirements are evaluated separately: an undated
+questionnaire can be submitted but cannot satisfy a case that requires a recent
+completion date. Existing cases keep their selected Document Set version until
+explicitly upgraded.
 
 An evaluation's **View revision** action opens the exact retained attributes,
 source, and recorded review used for that result. This view is read-only. Select

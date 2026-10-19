@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  Badge,
   Button,
   Input,
   Textarea,
   Field,
 } from "@dev-mainsequence/command-center-sdk/controls";
-import { ResourcePicker } from "@dev-mainsequence/command-center-sdk/views";
+import {
+  ResourceDetailShell,
+  ResourcePicker,
+} from "@dev-mainsequence/command-center-sdk/views";
 import { api, human, type Catalog, type Row } from "./api";
 import {
   Loading,
@@ -20,6 +24,18 @@ import { navigate } from "./App";
 import { ProcessingRun } from "./ProcessingRun";
 import { recordedTime } from "./DocumentDates";
 import { ComparisonPolicy } from "./ComparisonEvidence";
+import { CaseDocumentFields } from "./CaseDocumentFields";
+import {
+  ApplicationCard,
+  ApplicationPage,
+  ApplicationPageStack,
+  useCommandCenterViewport,
+} from "@dev-mainsequence/command-center-sdk/layout";
+import {
+  evidenceFieldLabel,
+  groupRequiredEvidence,
+  type EvidenceRequirement,
+} from "./ReviewEvidence";
 import "./casework.css";
 
 const lanes: Record<string, string> = {
@@ -433,34 +449,109 @@ export function CaseWorkspace({
     (signal) => api.get(`/cases/${uid}/workspace`, signal),
     [uid, runUid],
   );
-  const [selected, setSelected] = useState("");
+  const detailRef = useRef<HTMLElement>(null);
+  const viewport = useCommandCenterViewport();
+  const [selection, setSelection] = useState<{
+    requirement: string;
+    document: string;
+  }>();
   const [source, setSource] = useState<Row>();
   const [focus, setFocus] = useState<Row>();
   const [reason, setReason] = useState("");
-  const [findingFilter, setFindingFilter] = useState("outstanding");
+  const [fieldDrafts, setFieldDrafts] = useState<
+    Record<string, { revision: number; payload: Row }>
+  >({});
+  const [fieldsPending, setFieldsPending] = useState(false);
   const action = useAction(loaded.refresh);
   const data = loaded.data;
   const docs: Row[] = data?.documents ?? [];
-  useEffect(() => {
-    if (data && !docs.some((d) => d.uid === selected))
-      setSelected(docs[0]?.uid ?? "");
-  }, [data, selected]);
-  const doc = docs.find((d) => d.uid === selected);
-  function selectDocument(id: string) {
-    setSelected(id);
+  const findings: Row[] = data?.status.findings ?? [];
+  const requirements = groupRequiredEvidence(
+    findings,
+    docs,
+    data?.policy ?? {},
+  );
+  const active =
+    requirements.find((item) => item.key === selection?.requirement) ??
+    requirements.find((item) => item.documents.length) ??
+    requirements[0];
+  const doc =
+    active?.documents.find((item) => item.uid === selection?.document) ??
+    active?.documents[0];
+  const fieldKey = doc ? `${doc.uid}:${doc.revision}` : "";
+  const savedPayload = doc?.payload ?? {};
+  const fieldPayload = (doc && fieldDrafts[doc.uid]?.payload) ?? savedPayload;
+  const fieldsDirty =
+    JSON.stringify(fieldPayload) !== JSON.stringify(savedPayload);
+  const anyFieldsDirty = Object.keys(fieldDrafts).length > 0;
+  function changeFields(payload: Row) {
+    setFieldDrafts((previous) => {
+      const next = { ...previous };
+      if (JSON.stringify(payload) === JSON.stringify(savedPayload))
+        delete next[doc!.uid];
+      else
+        next[doc!.uid] = {
+          revision: previous[doc!.uid]?.revision ?? doc!.revision,
+          payload,
+        };
+      return next;
+    });
+  }
+  function reloadDocumentFields() {
+    changeFields(savedPayload);
+    loaded.refresh();
+  }
+  const result = data?.latest_evaluation;
+  const observations: Row[] =
+    result && !result.stale
+      ? (result.input_snapshot?.comparison_result?.observations ?? [])
+      : [];
+  const documentComparisons = observations.filter((item) =>
+    [item.left, item.right].some((fact) => fact.document_id === doc?.uid),
+  ).length;
+  const comparisonKeys = new Set(
+    (active?.finding?.document_references ?? [])
+      .map((ref: Row) => ref.comparison_key)
+      .filter(Boolean),
+  );
+  const comparisons = observations.filter((observation) =>
+    comparisonKeys.has(observation.key),
+  );
+  function selectRequirement(
+    requirement: EvidenceRequirement,
+    document = requirement.documents[0]?.uid ?? "",
+  ) {
+    setSelection({ requirement: requirement.key, document });
     setSource(undefined);
     setFocus(undefined);
     setReason("");
   }
   useEffect(() => {
     if (
-      data?.latest_evaluation?.stale ||
-      (focus && doc?.revision !== focus.revision)
-    ) {
+      selection &&
+      (viewport.breakpoint === "xs" || viewport.breakpoint === "sm")
+    )
+      detailRef.current?.scrollIntoView({ block: "start" });
+  }, [selection]);
+  function cite(fact: Row, citation: Row) {
+    const requirement = active?.documents.some(
+      (item) => item.uid === fact.document_id,
+    )
+      ? active
+      : requirements.find((item) =>
+          item.documents.some((document) => document.uid === fact.document_id),
+        );
+    if (!requirement) return;
+    selectRequirement(requirement, fact.document_id);
+    setSource(citation);
+    setFocus(fact);
+  }
+  useEffect(() => {
+    if (result?.stale || (focus && doc?.revision !== focus.revision)) {
       setSource(undefined);
       setFocus(undefined);
     }
-  }, [data?.latest_evaluation?.stale, doc?.revision]);
+  }, [result?.stale, doc?.uid, doc?.revision]);
   const evidence = useLoad(
     (signal) =>
       doc
@@ -471,21 +562,8 @@ export function CaseWorkspace({
         : Promise.resolve(undefined),
     [doc?.uid, doc?.revision],
   );
-  if (loaded.loading || loaded.error || !data)
-    return (
-      <main className="case-dashboard">
-        <Button onClick={() => navigate("/queue")}>Back to queue</Button>
-        <Loading error={loaded.error} />
-        <Button onClick={loaded.refresh}>Reload case</Button>
-      </main>
-    );
-  if (report) return <CaseReport data={data} />;
-  const findings: Row[] = data.status.findings;
-  const result = data.latest_evaluation;
-  const observations: Row[] =
-    result && !result.stale
-      ? (result.input_snapshot?.comparison_result?.observations ?? [])
-      : [];
+  const selectedEvidence =
+    evidence.loading || evidence.error ? undefined : evidence.data?.evidence;
   const pages: Row[] = doc?.evidence_summary?.pages ?? [];
   const activeSource =
     source ??
@@ -495,18 +573,12 @@ export function CaseWorkspace({
           page: pages[0].page,
           source_sha256: pages[0].source_sha256,
         }
-      : doc?.raw_document_refs[0]
+      : doc?.raw_document_refs?.[0]
         ? {
             source_id: doc.raw_document_refs[0].raw_document_uid,
             page: doc.raw_document_refs[0].first_page ?? 1,
           }
         : undefined);
-  const selectedEvidence = evidence.data?.evidence;
-  function cite(fact: Row, citation: Row) {
-    selectDocument(fact.document_id);
-    setSource(citation);
-    setFocus(fact);
-  }
   async function evaluate() {
     const current = await api.get(`/cases/${uid}`);
     const response = await api.command(`/cases/${uid}/evaluations`, {
@@ -516,27 +588,48 @@ export function CaseWorkspace({
       navigate(`/review/${uid}?run=${response.processing_run_uid}`);
     else loaded.refresh();
   }
+  if (loaded.loading || loaded.error || !data)
+    return (
+      <ApplicationPage maxWidth="full">
+        <ResourceDetailShell
+          loading={loaded.loading}
+          error={
+            loaded.error ? (
+              <>
+                <Loading error={loaded.error} />
+                <Button onClick={loaded.refresh}>Reload case</Button>
+              </>
+            ) : undefined
+          }
+          breadcrumbs={[
+            {
+              id: "queue",
+              label: "Case queue",
+              onSelect: () => navigate("/queue"),
+            },
+            { id: uid, label: "Case review" },
+          ]}
+        />
+      </ApplicationPage>
+    );
+  if (report) return <CaseReport data={data} />;
   return (
-    <main className="case-dashboard case-workspace">
-      <OperationRecovery />
-      <header className="case-page-heading">
-        <div>
-          <button className="case-back" onClick={() => navigate("/queue")}>
-            ← Case queue
-          </button>
-          <p className="case-eyebrow">
-            {data.case.case_type.name} · Case {shortId(uid)} ·{" "}
-            {data.policy.name} v{data.assignment.set_version}
-          </p>
-          <h1>{data.subject.full_name || "Unnamed subject"}</h1>
-          <p className="muted">
-            Case subject ·{" "}
-            {data.subject.external_reference || "No external reference"}
-          </p>
-        </div>
-        <div className="case-heading-actions">
-          <Lane value={data.workflow_state} />
-          <div className="actions">
+    <ApplicationPage className="case-workspace" maxWidth="full">
+      <ResourceDetailShell
+        contentVariant="plain"
+        breadcrumbs={[
+          {
+            id: "queue",
+            label: "Case queue",
+            onSelect: () => navigate("/queue"),
+          },
+          { id: uid, label: `Case ${shortId(uid)}` },
+        ]}
+        headerActions={
+          <>
+            <Button onClick={() => navigate(`/persons/${data.subject.uid}`)}>
+              Subject details
+            </Button>
             <Button
               onClick={() => navigate(`/review/${uid}?view=report`)}
               disabled={!result}
@@ -546,537 +639,608 @@ export function CaseWorkspace({
             <Button
               variant="primary"
               pending={action.pending}
+              disabled={fieldsPending || anyFieldsDirty}
+              title={
+                anyFieldsDirty
+                  ? "Save document field changes before running checks."
+                  : undefined
+              }
               onClick={() => void action.run(evaluate, "Evaluation requested.")}
             >
               Run checks
             </Button>
-          </div>
-        </div>
-      </header>
-      <div className="case-stats">
-        <Stat
-          title="Mandatory checks"
-          value={`${data.status.summary.satisfied_requirements} / ${data.status.summary.mandatory_requirements}`}
-          detail="Satisfied under the pinned policy"
-        />
-        <Stat
-          title="Linked documents"
-          value={docs.length}
-          detail={`${docs.filter((d) => d.accepted).length} accepted revisions`}
-        />
-        <Stat
-          title="Source pages"
-          value={data.page_count || "—"}
-          detail={
-            data.page_count_complete
-              ? "Cited physical pages"
-              : "Only pages with extraction evidence counted"
-          }
-        />
-        <Stat
-          title="Assigned reviewers"
-          value={data.reviewers.items.length}
-          detail="Staff responsibility, separate from subject"
-        />
-      </div>
-      <div className="case-responsibility">
-        <div>
-          <span className="case-eyebrow">Assigned reviewers</span>
-          <div className="actions">
-            {data.reviewers.items.length ? (
-              data.reviewers.items.map((r: Row) => (
-                <span className="case-reviewer" key={r.reviewer_uid}>
-                  {reviewerName(r)}
-                  {r.reviewer_uid === catalog.viewer.user_uid ? " · you" : ""}
-                </span>
-              ))
-            ) : (
-              <span className="muted">No staff reviewer assigned</span>
-            )}
-          </div>
-        </div>
-        {catalog.viewer.can_review && (
-          <Button
-            pending={action.pending}
-            onClick={() =>
-              void action.run(
-                () =>
-                  api.command(
-                    `/cases/${uid}/reviewers/me`,
-                    {
-                      expected_revision: data.reviewers.my_revision,
-                      assigned: !data.reviewers.assigned_to_me,
-                    },
-                    "PUT",
-                  ),
-                "Reviewer responsibility updated.",
-              )
-            }
-          >
-            {data.reviewers.assigned_to_me ? "Leave case" : "Assign to me"}
-          </Button>
-        )}
-      </div>
-      {action.feedback}
-      {runUid && (
-        <ProcessingRun
-          uid={runUid}
-          personUid={data.subject.uid}
-          comparison
-          onOpenResult={() => navigate(`/review/${uid}`)}
-        />
-      )}
-      {result?.stale && (
-        <Notice>
-          The last retained evaluation is out of date. Current findings below
-          use current evidence; its old comparison observations are not applied.
-          Run checks to retain a new result.
-        </Notice>
-      )}
-      <div className="case-review-grid">
-        <aside className="case-left-column">
-          <Panel
-            title="Required evidence"
-            aside={<small>Policy v{data.policy.version}</small>}
-          >
-            <ul className="case-requirements">
-              {findings.map((f) => (
-                <li key={f.requirement_key}>
-                  <span
-                    className={`case-state-dot case-state-dot--${f.status}`}
-                  />
-                  <div>
-                    <strong>{human(f.requirement_key)}</strong>
-                    <small>
-                      {human(f.status)}
-                      {f.mandatory ? " · Mandatory" : " · Optional"}
-                    </small>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-          <Panel
-            title="Linked documents"
-            aside={
-              <Button
-                size="small"
-                onClick={() =>
-                  navigate(`/persons/${data.subject.uid}?tab=requirements`)
-                }
-              >
-                Manage
-              </Button>
-            }
-          >
-            <div className="case-document-list">
-              {docs.map((d) => (
-                <button
-                  key={d.uid}
-                  className={selected === d.uid ? "selected" : ""}
-                  onClick={() => selectDocument(d.uid)}
-                >
-                  <span
-                    className={`case-state-dot case-state-dot--${d.accepted ? "satisfied" : "pending_review"}`}
-                  />
-                  <span>
-                    <strong>{human(d.document_type)}</strong>
-                    <small>
-                      Revision {d.revision} · {human(d.review_status)}
-                    </small>
-                    <small>
-                      {d.evidence_summary.field_count} cited fields ·{" "}
-                      {d.evidence_summary.pages.length || "—"} pages
-                    </small>
-                  </span>
-                </button>
-              ))}
-              {!docs.length && (
-                <p className="case-panel-copy muted">
-                  Link a subject's documents to begin review.
-                </p>
-              )}
+          </>
+        }
+        summary={
+          <header className="case-page-heading">
+            <div>
+              <p className="case-eyebrow">
+                {data.case.case_type.name} · {data.policy.name} v
+                {data.assignment.set_version}
+              </p>
+              <h1>{data.subject.full_name || "Unnamed subject"}</h1>
+              <p className="muted">
+                Case subject ·{" "}
+                {data.subject.external_reference || "No external reference"}
+              </p>
             </div>
-          </Panel>
-          <Button
-            onClick={() => navigate(`/documents?person=${data.subject.uid}`)}
-          >
-            Add source evidence
-          </Button>
-        </aside>
-        <section className="case-middle-column">
-          <Panel
-            title={doc ? human(doc.document_type) : "Source document"}
-            aside={doc && <small>Revision {doc.revision}</small>}
-          >
-            {doc ? (
-              <>
-                <nav className="case-page-tabs" aria-label="Source pages">
-                  {pages.map((p, i) => (
-                    <Button
-                      key={`${p.source_uid}:${p.page}:${i}`}
-                      size="small"
-                      variant={
-                        activeSource?.source_id === p.source_uid &&
-                        activeSource?.page === p.page
-                          ? "primary"
-                          : "secondary"
-                      }
-                      onClick={() =>
-                        setSource({
-                          source_id: p.source_uid,
-                          source_sha256: p.source_sha256,
-                          page: p.page,
-                        })
-                      }
-                    >
-                      Page {p.page}
-                    </Button>
-                  ))}
-                </nav>
-                <div className="case-source-viewer">
-                  {activeSource ? (
-                    <SourcePreview
-                      key={activeSource.source_id}
-                      uid={activeSource.source_id}
-                      page={activeSource.page}
-                      expectedSha256={activeSource.source_sha256}
-                    />
+            <Lane value={data.workflow_state} />
+          </header>
+        }
+      >
+        <ApplicationPageStack>
+          <OperationRecovery />
+          <div className="case-workspace-summary">
+            <div className="case-review-metrics" aria-label="Case summary">
+              <span>
+                <strong>
+                  {data.status.summary.satisfied_requirements} /{" "}
+                  {data.status.summary.mandatory_requirements}
+                </strong>{" "}
+                mandatory checks satisfied
+              </span>
+              <span>
+                <strong>{docs.length}</strong> linked documents
+              </span>
+              <span>
+                <strong>{data.page_count || "—"}</strong> cited source pages
+              </span>
+            </div>
+            <div className="case-responsibility">
+              <div>
+                <span className="case-eyebrow">Assigned reviewers</span>
+                <div className="actions">
+                  {data.reviewers.items.length ? (
+                    data.reviewers.items.map((reviewer: Row) => (
+                      <span
+                        className="case-reviewer"
+                        key={reviewer.reviewer_uid}
+                      >
+                        {reviewerName(reviewer)}
+                        {reviewer.reviewer_uid === catalog.viewer.user_uid
+                          ? " · you"
+                          : ""}
+                      </span>
+                    ))
                   ) : (
-                    <Notice>No original source is linked.</Notice>
+                    <span className="muted">No staff reviewer assigned</span>
                   )}
                 </div>
-                {focus && (
-                  <div className="case-focus-value">
-                    <small>Cited comparison · {focus.pointer}</small>
-                    <strong>{label(focus.value)}</strong>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="case-empty">Choose a linked document.</div>
-            )}
-          </Panel>
-          {doc && (
-            <Panel
-              title="Field evidence"
-              aside={
+              </div>
+              {catalog.viewer.can_review && (
                 <Button
                   size="small"
+                  pending={action.pending}
+                  disabled={fieldsPending}
                   onClick={() =>
-                    navigate(
-                      `/documents/${doc.uid}?tab=evidence&revision=${doc.revision}`,
+                    void action.run(
+                      () =>
+                        api.command(
+                          `/cases/${uid}/reviewers/me`,
+                          {
+                            expected_revision: data.reviewers.my_revision,
+                            assigned: !data.reviewers.assigned_to_me,
+                          },
+                          "PUT",
+                        ),
+                      "Reviewer responsibility updated.",
                     )
                   }
                 >
-                  Full evidence
+                  {data.reviewers.assigned_to_me
+                    ? "Leave case"
+                    : "Assign to me"}
                 </Button>
-              }
-            >
-              {evidence.loading || evidence.error ? (
-                <Loading error={evidence.error} />
-              ) : !selectedEvidence ? (
-                <p className="case-panel-copy muted">
-                  No extraction evidence is retained for this revision.
-                </p>
-              ) : (
-                <div className="case-table-scroll">
-                  <table className="case-table case-field-table">
-                    <thead>
-                      <tr>
-                        <th>Field</th>
-                        <th>Reader values</th>
-                        <th>Agreement</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedEvidence.extraction.field_evidence.map(
-                        (f: Row) => (
-                          <tr key={f.pointer}>
-                            <td>{f.pointer}</td>
-                            <td>
-                              {f.candidates.map((c: Row) => (
-                                <div key={c.reader_id}>
-                                  <strong>{label(c.value)}</strong>
-                                  <small>
-                                    {c.reader_id}{" "}
-                                    {f.selected_reader_id === c.reader_id
-                                      ? "· selected"
-                                      : ""}
-                                    {c.confidence == null
-                                      ? ""
-                                      : ` · confidence ${c.confidence}`}
-                                  </small>
-                                </div>
-                              ))}
-                            </td>
-                            <td>{human(f.agreement)}</td>
-                          </tr>
-                        ),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
               )}
-            </Panel>
-          )}
-        </section>
-        <aside className="case-right-column">
-          <Panel
-            title="Findings"
-            aside={
-              <span className="case-eyebrow">{findings.length} checks</span>
-            }
-          >
-            <div className="case-filters">
-              {["outstanding", "all"].map((f) => (
-                <Button
-                  key={f}
-                  size="small"
-                  variant={findingFilter === f ? "primary" : "secondary"}
-                  onClick={() => setFindingFilter(f)}
-                >
-                  {human(f)}
-                </Button>
-              ))}
             </div>
-            {findings
-              .filter(
-                (f) =>
-                  findingFilter === "all" ||
-                  !["satisfied", "not_applicable"].includes(f.status),
-              )
-              .map((f) => {
-                const pairs = new Set(
-                  (f.document_references ?? [])
-                    .map((r: Row) => r.comparison_key)
-                    .filter(Boolean),
-                );
-                const relevant = observations.filter((o) => pairs.has(o.key));
-                return (
-                  <article
-                    className={`case-finding case-finding--${f.status}`}
-                    key={f.requirement_key}
-                  >
-                    <header>
-                      <Status value={f.status} />
-                      <strong>{human(f.requirement_key)}</strong>
-                    </header>
-                    <p>{f.explanation}</p>
-                    {relevant.map((o) => (
-                      <div className="case-comparison" key={o.key}>
-                        <p>{o.explanation}</p>
-                        {[o.left, o.right].map((fact: Row, i: number) => (
+          </div>
+          {action.feedback}
+          {runUid && (
+            <ProcessingRun
+              uid={runUid}
+              personUid={data.subject.uid}
+              comparison
+              onOpenResult={() => navigate(`/review/${uid}`)}
+            />
+          )}
+          {result?.stale && (
+            <Notice>
+              The last retained evaluation is out of date. Current findings
+              below use current evidence; its old comparison observations are
+              not applied. Run checks to retain a new result.
+            </Notice>
+          )}
+          <div className="case-evidence-workspace">
+            <aside
+              className="case-evidence-navigation"
+              aria-label="Required evidence navigation"
+            >
+              <ApplicationCard
+                contentPadding="none"
+                header={
+                  <div className="case-section-heading">
+                    <h2>Required evidence</h2>
+                    <small className="muted">
+                      Policy v{data.policy.version}
+                    </small>
+                  </div>
+                }
+              >
+                <ul className="case-evidence-list">
+                  {requirements.map((requirement) => (
+                    <li
+                      key={requirement.key}
+                      data-requirement-key={requirement.key}
+                      className={
+                        active?.key === requirement.key ? "is-selected" : ""
+                      }
+                    >
+                      <Button
+                        className="case-requirement-select"
+                        variant="ghost"
+                        aria-pressed={active?.key === requirement.key}
+                        disabled={fieldsPending}
+                        onClick={() => selectRequirement(requirement)}
+                      >
+                        <span className="case-requirement-name">
+                          <strong>{requirement.title}</strong>
+                          <small>
+                            {requirement.comparison
+                              ? "Cross-document check"
+                              : requirement.finding?.mandatory
+                                ? "Mandatory"
+                                : requirement.finding
+                                  ? "Optional"
+                                  : "Case documents"}
+                          </small>
+                        </span>
+                        {requirement.finding && (
+                          <Status value={requirement.finding.status} />
+                        )}
+                      </Button>
+                      <div className="case-requirement-content">
+                        {requirement.finding && (
+                          <p className="case-requirement-finding">
+                            {requirement.finding.reason_code
+                              ? human(
+                                  requirement.finding.reason_code.toLowerCase(),
+                                )
+                              : requirement.finding.explanation}
+                          </p>
+                        )}
+                        {requirement.documents.length ? (
                           <div
-                            className="case-compared-value"
-                            key={`${fact.document_id}:${fact.pointer}:${i}`}
+                            className="case-requirement-documents"
+                            aria-label={`${requirement.title} linked documents`}
                           >
-                            <small>
-                              {human(
-                                docs.find((d) => d.uid === fact.document_id)
-                                  ?.document_type ?? "document",
-                              )}{" "}
-                              · {fact.pointer}
+                            <small className="case-eyebrow">
+                              Linked documents · {requirement.documents.length}
                             </small>
-                            <strong>{label(fact.value)}</strong>
-                            <div className="actions">
-                              {fact.citations.map((c: Row, n: number) => (
-                                <Button
-                                  key={n}
-                                  size="small"
-                                  onClick={() => cite(fact, c)}
-                                >
-                                  Inspect page {c.page}
-                                </Button>
-                              ))}
-                            </div>
+                            {requirement.documents.map((document) => (
+                              <Button
+                                key={document.uid}
+                                variant={
+                                  active?.key === requirement.key &&
+                                  doc?.uid === document.uid
+                                    ? "secondary"
+                                    : "ghost"
+                                }
+                                className="case-linked-document"
+                                aria-pressed={
+                                  active?.key === requirement.key &&
+                                  doc?.uid === document.uid
+                                }
+                                disabled={fieldsPending}
+                                onClick={() =>
+                                  selectRequirement(requirement, document.uid)
+                                }
+                              >
+                                <span>
+                                  <strong>
+                                    {human(document.document_type)}
+                                  </strong>
+                                  <small>
+                                    Revision {document.revision} ·{" "}
+                                    {document.status === "draft"
+                                      ? "Draft"
+                                      : human(document.review_status)}{" "}
+                                    · {shortId(document.uid)}
+                                    {fieldDrafts[document.uid]
+                                      ? " · Unsaved changes"
+                                      : ""}
+                                  </small>
+                                </span>
+                                <span aria-hidden="true">→</span>
+                              </Button>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <p className="case-missing-evidence">
+                            No linked document
+                            {requirement.options.length
+                              ? ` · ${[...new Set(requirement.options.map((option) => human(option.document_type)))].join(" or ")}`
+                              : ""}
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {!requirements.length && (
+                  <p className="muted case-panel-copy">
+                    No evidence requirements are defined for this case.
+                  </p>
+                )}
+              </ApplicationCard>
+              <div className="actions">
+                <Button
+                  onClick={() =>
+                    navigate(`/persons/${data.subject.uid}?tab=requirements`)
+                  }
+                >
+                  Manage linked evidence
+                </Button>
+                <Button
+                  onClick={() =>
+                    navigate(`/documents?person=${data.subject.uid}`)
+                  }
+                >
+                  Add source evidence
+                </Button>
+              </div>
+            </aside>
+            <section
+              className="case-evidence-detail"
+              ref={detailRef}
+              aria-label="Evidence details"
+            >
+              {active && (
+                <ApplicationCard
+                  className="case-requirement-detail"
+                  header={
+                    <div className="case-section-heading">
+                      <div>
+                        <p className="case-eyebrow">Selected requirement</p>
+                        <h2>{active.title}</h2>
+                      </div>
+                      {active.finding && (
+                        <Status value={active.finding.status} />
+                      )}
+                    </div>
+                  }
+                >
+                  <div className="form-stack">
+                    {active.finding ? (
+                      <>
+                        <p>{active.finding.explanation}</p>
+                        {active.finding.next_action && (
+                          <p className="muted">{active.finding.next_action}</p>
+                        )}
+                      </>
+                    ) : (
+                      <p>
+                        These case-linked documents are not associated with a
+                        current requirement.
+                      </p>
+                    )}
+                    {comparisons.map((observation) => (
+                      <div className="case-comparison" key={observation.key}>
+                        <p>{observation.explanation}</p>
+                        <div className="case-comparison-values">
+                          {[observation.left, observation.right].map(
+                            (fact: Row, i: number) => (
+                              <div
+                                className="case-compared-value"
+                                key={`${fact.document_id}:${fact.pointer}:${i}`}
+                              >
+                                <small>
+                                  {human(
+                                    docs.find(
+                                      (document) =>
+                                        document.uid === fact.document_id,
+                                    )?.document_type ?? "document",
+                                  )}{" "}
+                                  · {evidenceFieldLabel(fact.pointer)}
+                                </small>
+                                <strong>{label(fact.value)}</strong>
+                                <div className="actions">
+                                  {fact.citations.map(
+                                    (citation: Row, n: number) => (
+                                      <Button
+                                        key={n}
+                                        size="small"
+                                        onClick={() => cite(fact, citation)}
+                                      >
+                                        Inspect page {citation.page}
+                                      </Button>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            ),
+                          )}
+                        </div>
                       </div>
                     ))}
-                    <p className="muted">{f.next_action}</p>
-                    <div className="actions">
-                      {[
-                        ...new Set<string>(
-                          (f.document_references ?? []).map(
-                            (r: Row) => r.document_uid,
-                          ),
-                        ),
-                      ].map((id) => (
-                        <Button
-                          key={id}
-                          size="small"
-                          onClick={() => selectDocument(id)}
-                        >
-                          Inspect{" "}
-                          {human(
-                            docs.find((d) => d.uid === id)?.document_type ??
-                              "document",
-                          )}
-                        </Button>
-                      ))}
-                    </div>
-                  </article>
-                );
-              })}
-            {findingFilter === "outstanding" &&
-              findings.every((f) =>
-                ["satisfied", "not_applicable"].includes(f.status),
-              ) && (
-                <p className="case-panel-copy">
-                  No outstanding findings. Check completion does not approve a
-                  loan or account.
-                </p>
+                  </div>
+                </ApplicationCard>
               )}
-          </Panel>
-          {doc && (
-            <Panel
-              title="Review selected revision"
-              aside={<Status value={doc.review_status} />}
-            >
-              <div className="case-panel-copy form-stack">
-                <p>
-                  {human(doc.document_type)} · Revision {doc.revision}
-                </p>
-                {doc.latest_review && <p>{doc.latest_review.reason}</p>}
-                {catalog.viewer.can_review && doc.status === "submitted" ? (
-                  <>
-                    <Field label="Review reason" required>
-                      <Textarea
-                        rows={3}
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                      />
-                    </Field>
-                    <div className="actions">
-                      {["accepted", "rejected"].map((decision) => (
-                        <Button
-                          key={decision}
-                          size="small"
-                          variant={
-                            decision === "accepted" ? "primary" : "danger"
+              {doc ? (
+                <section
+                  className="case-selected-document"
+                  aria-label="Selected document"
+                  data-document-uid={doc.uid}
+                >
+                  <ApplicationPageStack>
+                    <ApplicationCard className="case-document-summary">
+                      <div
+                        className="case-document-states"
+                        aria-label="Document states"
+                      >
+                        {fieldsDirty && (
+                          <Badge variant="warning">Unsaved changes</Badge>
+                        )}
+                        <Status
+                          value={
+                            doc.status === "draft" ? "draft" : doc.review_status
                           }
-                          disabled={!reason.trim()}
-                          pending={action.pending}
+                        />
+                        <Badge
+                          variant={
+                            evidence.error ||
+                            (!evidence.loading && !selectedEvidence)
+                              ? "warning"
+                              : "neutral"
+                          }
+                        >
+                          {evidence.loading
+                            ? "Loading evidence…"
+                            : evidence.error
+                              ? "Evidence unavailable"
+                              : selectedEvidence
+                                ? "Extraction retained"
+                                : "No extraction evidence"}
+                        </Badge>
+                        <Badge variant={result?.stale ? "warning" : "neutral"}>
+                          {result?.stale
+                            ? "Checks out of date"
+                            : !result
+                              ? "Not checked"
+                              : documentComparisons
+                                ? `${documentComparisons} cited comparisons`
+                                : "No cited comparisons"}
+                        </Badge>
+                        <span className="muted">
+                          Policy v{data.policy.version}
+                        </span>
+                      </div>
+                      <div className="case-section-heading">
+                        <div>
+                          <p className="case-eyebrow">
+                            Selected document · {active?.title}
+                          </p>
+                          <h2>
+                            {human(doc.document_type)}{" "}
+                            <span className="case-document-revision">
+                              · Revision {doc.revision}
+                            </span>
+                          </h2>
+                        </div>
+                        <Button
+                          size="small"
                           onClick={() =>
-                            void action.run(
-                              () =>
-                                api.command(`/documents/${doc.uid}/reviews`, {
-                                  expected_revision: doc.revision,
-                                  expected_decision_sequence:
-                                    doc.latest_review?.decision_sequence ?? 0,
-                                  decision,
-                                  reason,
-                                }),
-                              "Revision review recorded.",
+                            navigate(
+                              `/documents/${doc.uid}?revision=${doc.revision}`,
                             )
                           }
                         >
-                          {decision === "accepted"
-                            ? "Accept revision"
-                            : "Reject revision"}
+                          Open document record
                         </Button>
-                      ))}
+                      </div>
+                      <dl className="document-dates">
+                        <div>
+                          <dt>Classification confidence</dt>
+                          <dd>
+                            {doc.parsing_result?.parsing_score_percent == null
+                              ? "Not supplied"
+                              : `${doc.parsing_result.parsing_score_percent}%`}
+                          </dd>
+                        </div>
+                      </dl>
+                    </ApplicationCard>
+                    <div className="case-document-detail-grid">
+                      <ApplicationCard
+                        contentPadding="none"
+                        className="case-document-source"
+                        header={<h2>Source document</h2>}
+                      >
+                        {pages.length > 0 && (
+                          <nav
+                            className="case-page-tabs"
+                            aria-label="Source pages"
+                          >
+                            {pages.map((page, i) => (
+                              <Button
+                                key={`${page.source_uid}:${page.page}:${i}`}
+                                size="small"
+                                variant={
+                                  activeSource?.source_id === page.source_uid &&
+                                  activeSource?.page === page.page
+                                    ? "primary"
+                                    : "secondary"
+                                }
+                                onClick={() =>
+                                  setSource({
+                                    source_id: page.source_uid,
+                                    source_sha256: page.source_sha256,
+                                    page: page.page,
+                                  })
+                                }
+                              >
+                                Page {page.page}
+                              </Button>
+                            ))}
+                          </nav>
+                        )}
+                        <div className="case-source-viewer">
+                          {activeSource ? (
+                            <SourcePreview
+                              key={`${doc.uid}:${activeSource.source_id}`}
+                              uid={activeSource.source_id}
+                              page={activeSource.page}
+                              expectedSha256={activeSource.source_sha256}
+                            />
+                          ) : (
+                            <Notice>No original source is linked.</Notice>
+                          )}
+                        </div>
+                        {focus && (
+                          <div className="case-focus-value">
+                            <small>
+                              Cited comparison ·{" "}
+                              {evidenceFieldLabel(focus.pointer)}
+                            </small>
+                            <strong>{label(focus.value)}</strong>
+                          </div>
+                        )}
+                      </ApplicationCard>
+                      <CaseDocumentFields
+                        key={fieldKey}
+                        document={doc}
+                        payload={fieldPayload}
+                        draftRevision={
+                          fieldDrafts[doc.uid]?.revision ?? doc.revision
+                        }
+                        onChange={changeFields}
+                        onPendingChange={setFieldsPending}
+                        onSaved={reloadDocumentFields}
+                        onReload={reloadDocumentFields}
+                      />
                     </div>
-                  </>
-                ) : (
-                  <p className="muted">
-                    {doc.status !== "submitted"
-                      ? "Complete and submit the draft before review."
-                      : "An authorized reviewer must record the decision."}
-                  </p>
-                )}
-                <Button
-                  size="small"
-                  onClick={() => navigate(`/documents/${doc.uid}`)}
-                >
-                  Correct attributes
-                </Button>
-              </div>
-            </Panel>
-          )}
-        </aside>
-      </div>
-      {!!data.policy.comparisons?.length && (
-        <details className="case-policy-details">
-          <summary>
-            Versioned cross-document rules · policy v{data.policy.version}
-          </summary>
-          <ComparisonPolicy rules={data.policy.comparisons} />
-        </details>
-      )}
-      <div className="case-bottom-grid">
-        <Panel
-          title="Processing evidence"
-          aside={<small>Selected document</small>}
-        >
-          <div className="case-pipeline">
-            {[
-              [
-                "01",
-                "Classify",
-                selectedEvidence?.classification?.pages?.length
-                  ? `${selectedEvidence.classification.pages.length} pages identified`
-                  : "No retained classification",
-              ],
-              [
-                "02",
-                "Extract",
-                selectedEvidence
-                  ? `${selectedEvidence.extraction.field_evidence.length} cited fields`
-                  : "No retained extraction",
-              ],
-              [
-                "03",
-                "Compare",
-                result && !result.stale
-                  ? `${observations.length} cited comparisons`
-                  : "Run checks for current observations",
-              ],
-              [
-                "04",
-                "Apply policy",
-                `Version ${data.policy.version} · ${findings.length} checks`,
-              ],
-              [
-                "05",
-                "Human review",
-                `${docs.filter((d) => d.accepted).length} accepted revisions`,
-              ],
-            ].map(([n, title, detail]) => (
-              <div key={n}>
-                <small>{n}</small>
-                <strong>{title}</strong>
-                <p>{detail}</p>
-              </div>
-            ))}
+                    <ApplicationCard
+                      className="case-document-review"
+                      header={
+                        <div className="case-section-heading">
+                          <h2>Review selected revision</h2>
+                          <Status
+                            value={
+                              doc.status === "draft"
+                                ? "draft"
+                                : doc.review_status
+                            }
+                          />
+                        </div>
+                      }
+                    >
+                      <div className="form-stack">
+                        <p>
+                          {human(doc.document_type)} · Revision {doc.revision}
+                        </p>
+                        {doc.latest_review && <p>{doc.latest_review.reason}</p>}
+                        {catalog.viewer.can_review &&
+                        doc.status === "submitted" &&
+                        !fieldsDirty &&
+                        !fieldsPending ? (
+                          <>
+                            <Field label="Review reason" required>
+                              <Textarea
+                                rows={3}
+                                value={reason}
+                                onChange={(event) =>
+                                  setReason(event.target.value)
+                                }
+                              />
+                            </Field>
+                            <div className="actions">
+                              {["accepted", "rejected"].map((decision) => (
+                                <Button
+                                  key={decision}
+                                  size="small"
+                                  variant={
+                                    decision === "accepted"
+                                      ? "primary"
+                                      : "danger"
+                                  }
+                                  disabled={!reason.trim()}
+                                  pending={action.pending}
+                                  onClick={() =>
+                                    void action.run(
+                                      () =>
+                                        api.command(
+                                          `/documents/${doc.uid}/reviews`,
+                                          {
+                                            expected_revision: doc.revision,
+                                            expected_decision_sequence:
+                                              doc.latest_review
+                                                ?.decision_sequence ?? 0,
+                                            decision,
+                                            reason,
+                                          },
+                                        ),
+                                      "Revision review recorded.",
+                                    )
+                                  }
+                                >
+                                  {decision === "accepted"
+                                    ? "Accept revision"
+                                    : "Reject revision"}
+                                </Button>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="muted">
+                            {fieldsDirty || fieldsPending
+                              ? "Save field changes before reviewing this document."
+                              : doc.status !== "submitted"
+                                ? "Complete and submit the draft before review."
+                                : "An authorized reviewer must record the decision."}
+                          </p>
+                        )}
+                        <div>
+                          <Button
+                            size="small"
+                            onClick={() => navigate(`/documents/${doc.uid}`)}
+                          >
+                            Correct attributes
+                          </Button>
+                        </div>
+                      </div>
+                    </ApplicationCard>
+                  </ApplicationPageStack>
+                </section>
+              ) : (
+                <ApplicationCard className="case-no-document">
+                  <div className="case-empty">
+                    <h2>No linked document</h2>
+                    <p>
+                      {active
+                        ? `Add evidence for ${active.title.toLowerCase()} to inspect its source and extracted fields here.`
+                        : "Select required evidence to inspect a linked document."}
+                    </p>
+                    <Button
+                      onClick={() =>
+                        navigate(`/documents?person=${data.subject.uid}`)
+                      }
+                    >
+                      Add source evidence
+                    </Button>
+                  </div>
+                </ApplicationCard>
+              )}
+            </section>
           </div>
-        </Panel>
-        <Panel
-          title="Subject activity"
-          aside={
-            <small>
-              Latest {data.subject_history.items.length} of{" "}
-              {data.subject_history.total_items}
-            </small>
-          }
-        >
-          <ol className="case-timeline">
-            {data.subject_history.items.map((event: Row) => (
-              <li key={event.uid}>
-                <strong>{human(event.action.replaceAll(".", " "))}</strong>
-                <time>{recordedTime(event.occurred_at)}</time>
-                <small>Actor {event.actor_uid.slice(0, 8)}</small>
-              </li>
-            ))}
-          </ol>
-          <p className="case-panel-footnote">
-            Activity covers this subject's cases. No cryptographic verification
-            is asserted.
-          </p>
-        </Panel>
-      </div>
-    </main>
+          {!!data.policy.comparisons?.length && (
+            <details className="case-policy-details">
+              <summary>
+                Versioned cross-document rules · policy v{data.policy.version}
+              </summary>
+              <ComparisonPolicy rules={data.policy.comparisons} />
+            </details>
+          )}
+        </ApplicationPageStack>
+      </ResourceDetailShell>
+    </ApplicationPage>
   );
 }
 

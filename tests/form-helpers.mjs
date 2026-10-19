@@ -28,6 +28,7 @@ export async function setValues(
   value,
   rootSchema = schema,
   page = scope,
+  prefix,
 ) {
   for (const [key, data] of Object.entries(value)) {
     if (["uid", "revision", "document_type"].includes(key) || data == null)
@@ -36,6 +37,10 @@ export async function setValues(
     if (!original) continue;
     const field = nodeSchema(original, rootSchema);
     const title = original.title ?? field.title ?? key;
+    const path = prefix ? `${prefix}.${key}` : undefined;
+    const control = path
+      ? scope.locator(`[id=${JSON.stringify(path)}]`)
+      : scope.getByLabel(titlePattern(title));
     if (field.type === "object" || field.properties) {
       const add = scope.getByRole("button", {
         name: `Add ${title.toLowerCase()}`,
@@ -48,6 +53,7 @@ export async function setValues(
         data,
         rootSchema,
         page,
+        path,
       );
     } else if (field.type === "array") {
       const group = scope.getByRole("group", { name: titlePattern(title) });
@@ -68,6 +74,7 @@ export async function setValues(
             data[index],
             rootSchema,
             page,
+            path ? `${path}.${index}` : undefined,
           );
         else
           await group
@@ -75,7 +82,7 @@ export async function setValues(
             .fill(String(data[index]));
       }
     } else if (field.enum || field.type === "boolean") {
-      await scope.getByLabel(titlePattern(title)).click();
+      await control.click();
       const label =
         typeof data === "boolean"
           ? data
@@ -85,6 +92,6 @@ export async function setValues(
               .replaceAll("_", " ")
               .replace(/^./, (c) => c.toUpperCase());
       await page.getByRole("option", { name: label, exact: true }).click();
-    } else await scope.getByLabel(titlePattern(title)).fill(String(data));
+    } else await control.fill(String(data));
   }
 }

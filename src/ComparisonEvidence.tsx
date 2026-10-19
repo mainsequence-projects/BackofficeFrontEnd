@@ -4,6 +4,7 @@ import { ApplicationCard } from "@dev-mainsequence/command-center-sdk/layout";
 import { api, human, type Row } from "./api";
 import { Loading, Notice, SourcePreview, Status, useLoad } from "./ui";
 import { navigate } from "./App";
+import { evidenceFieldLabel } from "./ReviewEvidence";
 
 const display = (value: unknown) =>
   typeof value === "string" ? value : JSON.stringify(value);
@@ -27,8 +28,10 @@ export function ComparisonPolicy({ rules }: { rules: Row[] }) {
           </h3>
           <p>{rule.description}</p>
           <p>
-            {human(rule.left.document_type)} · {rule.left.field} ↔{" "}
-            {human(rule.right.document_type)} · {rule.right.field}
+            {human(rule.left.document_type)} ·{" "}
+            {evidenceFieldLabel(rule.left.field)} ↔{" "}
+            {human(rule.right.document_type)} ·{" "}
+            {evidenceFieldLabel(rule.right.field)}
           </p>
           <p>
             Comparison: {human(rule.operator)}
@@ -154,7 +157,7 @@ export function ComparisonFindings({ evaluation }: { evaluation: Row }) {
                                 · Revision {fact.revision}
                               </Button>
                             </td>
-                            <td>{fact.pointer}</td>
+                            <td>{evidenceFieldLabel(fact.pointer)}</td>
                             <td>{display(fact.value)}</td>
                             <td>
                               {fact.citations.map((c: Row, n: number) => (
@@ -235,7 +238,8 @@ export function ExtractionEvidence({
             .filter((field: Row) => !field.candidates.length)
             .map((field: Row) => (
               <Notice key={field.pointer}>
-                {field.pointer}: no reader supplied a value or citation.
+                {evidenceFieldLabel(field.pointer)}: no reader supplied a value
+                or citation.
               </Notice>
             ))}
           <div className="evidence-table-scroll">
@@ -254,7 +258,7 @@ export function ExtractionEvidence({
                 {evidence.extraction.field_evidence.flatMap((field: Row) =>
                   field.candidates.map((candidate: Row) => (
                     <tr key={`${field.pointer}:${candidate.reader_id}`}>
-                      <td>{field.pointer}</td>
+                      <td>{evidenceFieldLabel(field.pointer)}</td>
                       <td>
                         {candidate.reader_id}
                         {field.selected_reader_id === candidate.reader_id && (

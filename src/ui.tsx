@@ -24,6 +24,7 @@ export function Status({ value }: { value: string }) {
                   "pending_review",
                   "needs_review",
                   "needs_information",
+                  "missing",
                   "needs_input",
                   "running",
                   "draft",
