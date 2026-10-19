@@ -10,7 +10,7 @@ API and agent integration, documentation, and delivery milestones.
 The companion `backofficebackend` CodeRepository owns the Pydantic document catalog,
 Main Sequence MetaTables, REST/MCP services, processing Jobs, and `ms-tau-sdk` agent.
 
-The backend exposes ten canonical/draft JSON Schema pairs through authenticated
+The backend exposes thirteen canonical/draft JSON Schema pairs through authenticated
 business endpoints. Forms use those fields and descriptions. Source uploads use
 bounded chunks and checksum verification. Reviews and evaluations retain immutable
 history; changed evidence makes prior evaluations visibly out of date.
@@ -58,3 +58,9 @@ loopback stack. It creates synthetic local records and refuses a non-loopback UR
 
 Engineering plans and integration procedures live in `engineering/`. The served
 user guide lives under `docs/` and follows the application's four destinations.
+
+The shared document workflow now supports **Extract from source**, processing
+status/retry, revision-specific extraction evidence, and cited cross-document
+comparisons. Evaluations handle both synchronous results and queued comparisons;
+all business rules remain in Back Office. `npm run test:comparisons` verifies the
+browser integration with controlled API responses (no provider or production writes).

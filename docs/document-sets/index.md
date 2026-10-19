@@ -72,3 +72,14 @@ Six calendar months is not 180 days: August 31 plus six months is February 28
 The document-set page displays the age basis and renewal interval for every
 alternative. Policy definitions are published through the backend catalog;
 this page does not edit them.
+
+## Cross-document checks
+
+Policies that include comparisons show a **Cross-document checks** panel. It names
+the two document fields, the comparison method, whether the check is mandatory,
+and any numeric tolerances. Those rules are applied by Back Office.
+
+Loan requirements version 2 and new account requirements version 3 include
+illustrative comparison rules. Choose the published version explicitly when
+assigning it. Existing assignments keep their selected version. Loans and new
+accounts use the same processing, review and evaluation screens.

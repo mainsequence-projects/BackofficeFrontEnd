@@ -24,6 +24,8 @@ export function Status({ value }: { value: string }) {
                   "pending_review",
                   "needs_review",
                   "needs_information",
+                  "needs_input",
+                  "running",
                   "draft",
                 ].includes(value)
               ? "warning"
@@ -128,11 +130,13 @@ export function Loading({ error }: { error?: string }) {
     <ActivityIndicator label="Loading records" />
   );
 }
-export function SourcePreview({ uid }: { uid: string }) {
+export function SourcePreview({ uid, page = 1, expectedSha256 }: { uid: string; page?: number; expectedSha256?: string }) {
   const [url, setUrl] = useState("");
   const result = useLoad(
     async (signal) => {
       const source = await api.get(`/source-documents/${uid}`, signal);
+      if (expectedSha256 && source.content_sha256 !== expectedSha256)
+        throw new Error("This source does not match the cited checksum.");
       const chunks: Uint8Array<ArrayBuffer>[] = [];
       for (let index = 0; index < source.chunk_count; index++) {
         const response = await api.get(
@@ -151,7 +155,9 @@ export function SourcePreview({ uid }: { uid: string }) {
           throw new Error("Source chunk checksum verification failed.");
         chunks.push(bytes);
       }
-      const blob = new Blob(chunks, { type: source.media_type });
+      const blob = source.storage_kind === "bucket"
+        ? await (await api.response(`/source-documents/${uid}/content`, { signal })).blob()
+        : new Blob(chunks, { type: source.media_type });
       const checksum = Array.from(
         new Uint8Array(
           await crypto.subtle.digest("SHA-256", await blob.arrayBuffer()),
@@ -166,7 +172,7 @@ export function SourcePreview({ uid }: { uid: string }) {
         text: source.media_type === "text/plain" ? await blob.text() : "",
       };
     },
-    [uid],
+    [uid, expectedSha256],
   );
   useEffect(() => {
     if (!result.data) return;
@@ -187,7 +193,7 @@ export function SourcePreview({ uid }: { uid: string }) {
       {source.media_type.startsWith("image/") ? (
         <img src={url} alt={source.filename} />
       ) : source.media_type === "application/pdf" ? (
-        <iframe src={url} title={`Source: ${source.filename}`} />
+        <iframe src={`${url}#page=${page}`} title={`Source: ${source.filename}`} />
       ) : (
         <pre>{text}</pre>
       )}

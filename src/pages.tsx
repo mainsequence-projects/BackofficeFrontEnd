@@ -44,6 +44,8 @@ import {
   OperationRecovery,
 } from "./ui";
 import { navigate } from "./App";
+import { ProcessingRun, evaluationPath } from "./ProcessingRun";
+import { ComparisonPolicy, ComparisonFindings, ExtractionEvidence } from "./ComparisonEvidence";
 
 function Page({ children }: { children: ReactNode }) {
   return (
@@ -518,12 +520,20 @@ function UploadDocument({
             </Field>
           )}
         </div>
+        <p className="muted">Extract from source lets Back Office classify and read the document. The selected type is used only for manual entry. Upload one logical document per file.</p>
         {progress && <Notice>{progress}</Notice>}
         {action.feedback}
         <div className="actions">
-          <Button type="submit" variant="primary" pending={action.pending}>
-            Create document
-          </Button>
+          <Button type="submit" pending={action.pending}>Create document</Button>
+          <Button variant="primary" pending={action.pending} disabled={!file && !source} onClick={() => void action.run(async () => {
+            if (file && !["application/pdf", "image/png", "image/jpeg"].includes(file.type))
+              throw new Error("Extraction supports PDF, PNG and JPEG. Use manual entry for text files.");
+            setProgress("Preparing extraction…");
+            const sourceUid = file ? (await uploadFile(personUid, file, setProgress)).uid : source;
+            const result = await api.command(`/source-documents/${sourceUid}/process`);
+            setProgress("");
+            navigate(`/documents?person=${personUid}&run=${result.uid}`);
+          }, "Extraction requested.")}>Extract from source</Button>
         </div>
       </form>
     </ApplicationCard>
@@ -700,7 +710,7 @@ function AssignmentCard({
                   { expected_revision: current.revision },
                 );
                 navigate(
-                  `/reconciliation?person=${personUid}&evaluation=${result.uid}`,
+                  evaluationPath(personUid, current.uid, result),
                 );
               })
             }
@@ -757,9 +767,11 @@ export function PersonPicker({
 export function Documents({
   catalog,
   personUid,
+  runUid = "",
 }: {
   catalog: Catalog;
   personUid: string;
+  runUid?: string;
 }) {
   const loaded = useLoad(
     async (signal) =>
@@ -784,6 +796,7 @@ export function Documents({
         value={personUid}
         onChange={(uid) => navigate(`/documents?person=${uid}`)}
       />
+      {personUid && runUid && <ProcessingRun key={runUid} uid={runUid} personUid={personUid} />}
       {personUid ? (
         loaded.loading || loaded.error ? (
           <Loading error={loaded.error} />
@@ -916,8 +929,9 @@ export function DocumentPage({
         tabs={[
           { id: "attributes", label: "Attributes and source" },
           { id: "review", label: "Review" },
+          { id: "evidence", label: "Extraction evidence" },
         ]}
-        activeTabId={tab === "review" ? "review" : "attributes"}
+        activeTabId={["review", "evidence"].includes(tab) ? tab : "attributes"}
         onTabChange={(next) => navigate(tabPath(next))}
         headerActions={<Reload onClick={loaded.refresh} />}
         contentVariant="plain"
@@ -951,7 +965,7 @@ export function DocumentPage({
           <p>{doc.parsing_result.review_uid && doc.latest_review?.uid === doc.parsing_result.review_uid ? "This exact document revision was accepted automatically under the recorded parsing policy." : `Parsing outcome: ${human(doc.parsing_result.reason_code)}. Document review decisions are shown separately below.`}</p>
         </ApplicationCard>}
         {action.feedback}
-        {tab !== "review" ? (
+        {tab === "evidence" ? <ExtractionEvidence key={`${uid}:${doc.revision}`} uid={uid} revision={doc.revision} /> : tab !== "review" ? (
           <div className="split-view">
             <ApplicationCard header={<h2>Original source</h2>}>
               {doc.raw_document_refs.length > 1 && (
@@ -1158,6 +1172,7 @@ export function DocumentSets({
           contentVariant="plain"
         >
           <p>{policy.description}</p>
+          <ComparisonPolicy rules={policy.comparisons ?? []} />
           <p className="muted">Each requirement accepts any qualifying alternative below. Calendar-month rules clamp anniversaries to the last day of a shorter month. Evidence is fresh through its age limit; periodic renewal is due on its anniversary. Dates are evaluated in UTC.</p>
           <div className="requirement-list">
             {policy.requirements.map((r: Row) => (
@@ -1219,10 +1234,14 @@ export function Reconciliation({
   catalog,
   personUid,
   evaluationUid,
+  runUid = "",
+  requestedAssignment = "",
 }: {
   catalog: Catalog;
   personUid: string;
   evaluationUid: string;
+  runUid?: string;
+  requestedAssignment?: string;
 }) {
   const loaded = useLoad(
     async (signal) =>
@@ -1234,8 +1253,8 @@ export function Reconciliation({
   );
   const [assignmentUid, setAssignmentUid] = useState("");
   useEffect(() => {
-    setAssignmentUid(loaded.data?.[0]?.uid ?? "");
-  }, [loaded.data]);
+    setAssignmentUid(loaded.data?.find(a => a.uid === requestedAssignment)?.uid ?? loaded.data?.[0]?.uid ?? "");
+  }, [loaded.data, requestedAssignment]);
   const evaluations = useLoad(
     async (signal) =>
       assignmentUid
@@ -1251,6 +1270,10 @@ export function Reconciliation({
         : Promise.resolve(undefined),
     [evaluationUid],
   );
+  useEffect(() => {
+    if (!requestedAssignment && evaluation.data?.person_uid === personUid)
+      setAssignmentUid(evaluation.data.assignment_uid);
+  }, [evaluation.data, requestedAssignment, personUid]);
   const action = useAction(() => {
     evaluations.refresh();
     evaluation.refresh();
@@ -1263,8 +1286,8 @@ export function Reconciliation({
         `/assignments/${assignmentUid}/evaluations`,
         { expected_revision: current.revision },
       );
-      navigate(`/reconciliation?person=${personUid}&evaluation=${result.uid}`);
-    }, "Evaluation completed.");
+      navigate(evaluationPath(personUid, current.uid, result));
+    }, "Evaluation requested.");
   const reports = useMemo(
     () =>
       staticDefinition(
@@ -1326,7 +1349,7 @@ export function Reconciliation({
               <ResourcePicker
                 ariaLabel="Assignment"
                 value={assignmentUid}
-                onValueChange={setAssignmentUid}
+                onValueChange={(uid) => navigate(`/reconciliation?person=${personUid}&assignment=${uid}`)}
                 options={loaded.data.map((a) => ({
                   value: a.uid,
                   label:
@@ -1351,6 +1374,7 @@ export function Reconciliation({
             </Button>
           </div>
           {action.feedback}
+          {runUid && <ProcessingRun key={runUid} uid={runUid} personUid={personUid} comparison />}
           {assignmentUid && <CurrentRequirements key={`${assignmentUid}:${evaluations.data?.length ?? 0}`} assignmentUid={assignmentUid} />}
           {evaluationUid &&
             (evaluation.loading || evaluation.error ? (
@@ -1374,7 +1398,7 @@ export function Reconciliation({
               tablePresentation="auto"
               onRowActivate={(e) =>
                 navigate(
-                  `/reconciliation?person=${personUid}&evaluation=${e.uid}`,
+                  evaluationPath(personUid, assignmentUid, e),
                 )
               }
               emptyContent="No evaluations yet. Run a fresh evaluation to see coverage and next actions."
@@ -1423,8 +1447,9 @@ function EvaluationResults({
             : "The case has outstanding requirements. Follow the findings below."}
         </p>
       </ApplicationCard>
+      <ComparisonFindings key={row.uid} evaluation={row} />
       <ApplicationCardGrid>
-        {row.findings?.map((finding: Row) => (
+        {row.findings?.filter((finding: Row) => !(row.input_snapshot?.policy?.comparisons ?? []).some((rule: Row) => rule.key === finding.requirement_key)).map((finding: Row) => (
           <ApplicationCard
             key={finding.uid}
             header={

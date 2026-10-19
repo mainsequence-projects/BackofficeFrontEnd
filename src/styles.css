@@ -161,3 +161,16 @@ pre {
   padding-block-start: 0.5rem;
   border-block-start: 1px solid var(--border);
 }
+
+.evidence-table-scroll { overflow-x: auto; max-width: 100%; }
+.evidence-table { width: 100%; border-collapse: collapse; text-align: start; font-size: var(--font-size-body-sm); }
+.evidence-table caption { text-align: start; padding-block: 0.5rem; color: var(--muted-foreground); }
+.evidence-table th, .evidence-table td { padding: 0.65rem; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; min-width: 7rem; }
+.evidence-table th { background: var(--muted); }
+.comparison-finding { margin-block: 1rem; border-top: 1px solid var(--border); padding-block-start: 1rem; }
+.comparison-pair { margin-block: 1rem; }
+.comparison-source { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+
+.evidence-card > [data-cc-application-card-content] { grid-template-columns: minmax(0, 1fr); }
+.evidence-card p, .evidence-card h3 { overflow-wrap: anywhere; }
+.comparison-finding, .comparison-pair { min-width: 0; }

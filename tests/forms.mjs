@@ -14,7 +14,7 @@ const backend =
 const base = process.env.BACKOFFICE_TEST_URL ?? "http://127.0.0.1:15174";
 assert(["127.0.0.1", "localhost"].includes(new URL(base).hostname));
 const kinds = (await readdir(resolve(backend, "schemas/documents"))).sort();
-assert.equal(kinds.length, 10);
+assert.equal(kinds.length, 13);
 const schemas = Object.fromEntries(
   await Promise.all(
     kinds.map(async (kind) => [
@@ -113,7 +113,7 @@ try {
     console.log("Schema-driven field entry preserved backend fixture: " + kind);
   }
   assert.deepEqual(errors, []);
-  console.log("All ten backend schema renderer contracts passed.");
+  console.log(`All ${kinds.length} backend schema renderer contracts passed.`);
 } finally {
   await browser.close();
 }

@@ -24,10 +24,12 @@ revisions, and review retained evaluation history.
 
 1. Under the person's **Requirements** tab, link the evidence you want evaluated.
 2. Choose **Evaluate requirements**, or use **Run fresh evaluation** here.
-3. Read **Requirement findings**. Open **View revision** to inspect evidence.
+3. If **Evaluation processing** appears, wait for completion and select **View evaluation**.
+   Keep this page's URL to return to the same processing run after a reload.
+4. Read **Requirement findings**. Open **View revision** to inspect evidence.
    Use **Complete reference profile** or **Add supporting evidence** when offered.
-4. Submit or review corrected documents, then run a fresh evaluation.
-5. Open a row in **Evaluation history** to inspect a retained result.
+5. Submit or review corrected documents, then run a fresh evaluation.
+6. Open a row in **Evaluation history** to inspect a retained result.
 
 ## Understand what you see
 
@@ -68,3 +70,17 @@ Saved evaluations remain historical snapshots. Their dates and findings do not
 change after a new review. An **Out of date** badge means that evidence, reviews,
 the evaluation date, or evaluation rules have changed; run a fresh evaluation
 to retain a new audit result.
+
+## Cross-document comparisons
+
+For comparison-enabled policies, **Cited cross-document comparisons** shows the
+retained values, context, source pages and exact revisions side by side. The parser
+reports observations and uncertainty; Back Office determines the finding using the
+assigned policy. **Page** opens the checksum-verified source, and each revision link
+opens its read-only record. Completing the checks is not loan or account approval.
+
+Use **Retry processing** after a failed job. If inputs changed during processing,
+the result requires a fresh evaluation. An old successful report cannot stand in
+for changed evidence. Current status reads retained comparisons; it does not launch
+new work. Reviewed documents without cited extraction remain unresolved when a
+comparison requires that evidence.

@@ -5,6 +5,13 @@ Status: frontend implemented with Command Center SDK 0.5.18 and Command Center A
 Local chat was verified through the SDK proxy with a real GPT-5.6 Luna response.
 Hosted conversation verification still awaits that Agent and its discovery endpoint.
 
+File-support release check on 2026-10-19: the npm registry still lists SDK 0.5.18
+and AI 0.0.15 as latest, and `application update-sdk --dry-run` proposes no change.
+The installed AI conversation contract explicitly excludes files and attachments.
+The backend is now pinned to TAU SDK 2.0.19, whose chat parser still extracts only
+text and exposes no attachment upload route. File input needs compatible published
+package releases; the application keeps the package-owned composer and transport.
+
 Top-level loopback development uses `createLocalAgentSource` and the SDK's
 `localAgentProxy` at `/__agent__`, targeting Back Office Tau on port 28643 (or
 `MAINSEQUENCE_TAU_LOCAL_ORIGIN`). It skips hosted discovery and platform sessions;

@@ -53,7 +53,22 @@ source, and recorded review used for that result. This view is read-only. Select
 
 Identifiers retain leading zeros. Amounts retain their entered precision.
 Source files are checked for size, completeness, and integrity before use.
-Attribute entry and review are manual; automatic extraction is not available.
+Choose **Extract from source** for a PDF, PNG or JPEG to classify and extract its
+attributes through Back Office. This uses the same document and review workflow
+for every document set; the selected document type only affects manual creation.
+Upload one logical document per file. A package containing multiple document types
+requires separate files before processing can continue.
+
+The **Document processing** panel shows progress and offers **Review extracted
+document** when complete. Keep its URL to return after leaving the page. Use
+**Retry processing** for a failed job. A **Needs input** result requires attention
+to the source before starting new work.
+
+Open **Extraction evidence** to inspect each reader's values, agreement and cited
+pages for the selected revision. **Page** buttons open the preserved source. Manual
+revisions without extraction evidence say so; corrections never inherit the old
+revision's citations. Extraction alone does not grant acceptance; the recorded
+Back Office policy and review determine the result.
 
 ## If something goes wrong
 

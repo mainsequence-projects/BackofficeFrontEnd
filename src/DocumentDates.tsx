@@ -86,8 +86,8 @@ export function CurrentRequirements({
                 {human(finding.requirement_key)} <Status value={finding.status} />
               </h4>
               <p>{finding.explanation}</p>
-              {finding.document_references.map((ref: Row) => (
-                <div key={ref.document_uid}>
+              {finding.document_references.filter((ref: Row, i: number, refs: Row[]) => refs.findIndex(r => r.document_uid === ref.document_uid && r.revision === ref.revision) === i).map((ref: Row) => (
+                <div key={`${ref.document_uid}:${ref.revision}`}>
                   <EvidenceDates dates={ref.dates} />
                   <Button
                     size="small"

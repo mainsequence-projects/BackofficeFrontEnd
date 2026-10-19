@@ -92,3 +92,24 @@ six-calendar-month freshness, overdue actions, pinned policy versions, mobile
 layout, stale reports, and exact retained submission dates.
 The current `npm run test:revisions` passed as well: a new draft leaves the
 accepted older payload, verified source, and review available in a read-only view.
+
+## Shared parser workflow integration
+
+The static site calls only authenticated Back Office endpoints for extraction,
+processing status/retry and evaluations. Both loan and new-account policies use
+these components. Comparison pages render retained findings and observations;
+they do not calculate tolerances or decide acceptance. Source previews verify the
+citation's source checksum before rendering, and revision links retain the exact
+revision. Queued runs stay in the URL, including across reloads.
+
+`npm run test:comparisons` starts an isolated Vite server on loopback port 15189
+and uses controlled Back Office API responses. It covers both product policies,
+HTTP 201/202 handoff, retained assignment selection, reload/poll/retry, changed
+inputs, stale reports, source-integrity failures, extraction and field evidence,
+and desktop/mobile layouts. It does not call the parser, AWS, a hosted API or a
+real database. Screenshots are saved under ignored `.local/comparison-verification`.
+
+Deploying these screens requires the Back Office comparison worker and richer
+extraction evidence endpoints, with the new policy versions published. Existing
+policy versions continue to return synchronous evaluations. Frontend build and
+browser checks do not verify hosted Job dispatch or live provider quality.

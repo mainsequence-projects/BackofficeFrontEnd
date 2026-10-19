@@ -308,6 +308,7 @@ export default function App() {
         <Documents
           catalog={catalog}
           personUid={url.searchParams.get("person") ?? ""}
+          runUid={url.searchParams.get("run") ?? ""}
         />
       )
     ) : section === "document-sets" ? (
@@ -317,6 +318,8 @@ export default function App() {
         catalog={catalog}
         personUid={url.searchParams.get("person") ?? ""}
         evaluationUid={url.searchParams.get("evaluation") ?? ""}
+        runUid={url.searchParams.get("run") ?? ""}
+        requestedAssignment={url.searchParams.get("assignment") ?? ""}
       />
     ) : section === "admin" ? (
       <Admin viewer={catalog.viewer} types={catalog.types} />
