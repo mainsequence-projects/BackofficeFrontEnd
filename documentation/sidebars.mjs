@@ -25,6 +25,11 @@ const sidebars = {
       "type": "doc",
       "id": "reconciliation/index",
       "label": "Reconciliation"
+    },
+    {
+      "type": "doc",
+      "id": "agent/index",
+      "label": "Agent"
     }
   ]
 };

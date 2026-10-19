@@ -32,6 +32,7 @@ import {
   type Catalog,
 } from "./api";
 import { SchemaForm } from "./SchemaForm";
+import { CurrentRequirements, EvidenceDates, recordedTime } from "./DocumentDates";
 import {
   Loading,
   Notice,
@@ -44,11 +45,6 @@ import {
 } from "./ui";
 import { navigate } from "./App";
 
-const help = {
-  id: "help",
-  label: "User guide",
-  onSelect: () => window.open("/docs/", "_blank", "noopener"),
-};
 function Page({ children }: { children: ReactNode }) {
   return (
     <ApplicationPage maxWidth="wide">
@@ -222,7 +218,6 @@ export function People() {
             tone: "primary",
             onSelect: () => navigate("/persons/new"),
           },
-          help,
         ]}
         emptyContent={
           <p>No people yet. Create a person to start a document case.</p>
@@ -369,11 +364,6 @@ export function PersonPage({
           },
           { id: "history", label: "Activity" },
         ]}
-        headerActions={
-          <a href="/docs/persons/" target="_blank" rel="noreferrer">
-            User guide
-          </a>
-        }
         contentVariant="plain"
       >
         {selected === "profile" && <ApplicationCard>{form}</ApplicationCard>}
@@ -658,6 +648,7 @@ function AssignmentCard({
           This assignment stays pinned to the selected policy version. Add the
           evidence that should be evaluated for this case.
         </p>
+        <CurrentRequirements key={assignment.revision} assignmentUid={assignment.uid} />
         <Field label="Evidence documents">
           <ResourcePicker
             ariaLabel="Evidence documents"
@@ -716,7 +707,7 @@ function AssignmentCard({
           >
             Evaluate requirements
           </Button>
-          <Button onClick={() => navigate(`/document-sets/${item.set_key}`)}>
+          <Button onClick={() => navigate(`/document-sets/${item.set_key}?version=${item.set_version}`)}>
             View requirements
           </Button>
         </div>
@@ -788,11 +779,6 @@ export function Documents({
       <ApplicationPageHeader
         title="Documents"
         description="Upload source evidence, complete its attributes, and review the exact submitted revision."
-        actions={
-          <a href="/docs/documents/" target="_blank" rel="noreferrer">
-            User guide
-          </a>
-        }
       />
       <PersonPicker
         value={personUid}
@@ -945,6 +931,15 @@ export function DocumentPage({
             </Button>
           </Notice>
         )}
+        <ApplicationCard header={<h2>Document dates</h2>}>
+          <dl className="document-dates">
+            <div><dt>Document recorded</dt><dd>{recordedTime(doc.created_at)}</dd></div>
+            <div><dt>Revision recorded</dt><dd>{recordedTime(doc.revision_created_at)}</dd></div>
+            <div><dt>Revision submitted</dt><dd>{doc.submitted_at ? recordedTime(doc.submitted_at) : "Not submitted"}</dd></div>
+            <div><dt>Last reviewed</dt><dd>{doc.latest_review ? recordedTime(doc.latest_review.reviewed_at) : "Not reviewed"}</dd></div>
+          </dl>
+          <p className="muted">Recorded times use your local timezone. Evidence issue and completion dates are shown in the attributes below. Uploading or reviewing evidence does not reset its age.</p>
+        </ApplicationCard>
         {action.feedback}
         {tab !== "review" ? (
           <div className="split-view">
@@ -1104,14 +1099,16 @@ export function DocumentPage({
 export function DocumentSets({
   catalog,
   selected,
+  version,
 }: {
   catalog: Catalog;
   selected?: string;
+  version?: string;
 }) {
-  const policy = catalog.sets.find((s) => s.key === selected);
+  const policy = catalog.sets.find((s) => s.key === selected && (version === undefined || String(s.version) === version));
   const def = useMemo(
     () =>
-      staticDefinition("document-sets", "Document Sets", catalog.sets, [
+      staticDefinition("document-sets", "Document Sets", catalog.sets.map((s) => ({ ...s, uid: `${s.key}@${s.version}` })), [
         {
           id: "name",
           header: "Document set",
@@ -1151,6 +1148,7 @@ export function DocumentSets({
           contentVariant="plain"
         >
           <p>{policy.description}</p>
+          <p className="muted">Each requirement accepts any qualifying alternative below. Calendar-month rules clamp anniversaries to the last day of a shorter month. Evidence is fresh through its age limit; periodic renewal is due on its anniversary. Dates are evaluated in UTC.</p>
           <div className="requirement-list">
             {policy.requirements.map((r: Row) => (
               <ApplicationCard
@@ -1176,14 +1174,16 @@ export function DocumentSets({
                     needs clarification.
                   </p>
                 )}
+                <p>Accepted alternatives (any qualifying option):</p>
                 <ul>
                   {r.options.map((o: Row) => (
                     <li key={o.document_type}>
                       {human(o.document_type)}
                       {o.require_unexpired ? " · Must be currently valid" : ""}
-                      {o.max_age_days !== null
-                        ? ` · At most ${o.max_age_days} days old`
-                        : ""}
+                      {o.max_age_days != null ? ` · At most ${o.max_age_days} days old` : ""}
+                      {o.max_age_months != null ? ` · At most ${o.max_age_months} calendar months old` : ""}
+                      {o.freshness_field ? ` · Age measured from ${human(o.freshness_field).toLowerCase()}` : ""}
+                      {o.renewal_interval_months != null ? ` · ${o.renewal_basis === "submitted_at" ? "Submit a new revision" : "Review again"} every ${o.renewal_interval_months} calendar months from ${o.renewal_basis === "submitted_at" ? "submission" : "the last accepted review"}` : ""}
                       {o.required_fields.length
                         ? ` · Also requires ${o.required_fields.map(human).join(", ")}`
                         : ""}
@@ -1198,8 +1198,7 @@ export function DocumentSets({
         <ResourceListPage
           definition={def}
           tablePresentation="auto"
-          primaryActions={[help]}
-          onRowActivate={(s) => navigate(`/document-sets/${s.key}`)}
+          onRowActivate={(s) => navigate(`/document-sets/${s.key}?version=${s.version}`)}
         />
       )}
     </Page>
@@ -1290,11 +1289,6 @@ export function Reconciliation({
       <ApplicationPageHeader
         title="Reconciliation"
         description="Evaluate the assigned requirements against exact document revisions and recorded reviews."
-        actions={
-          <a href="/docs/reconciliation/" target="_blank" rel="noreferrer">
-            User guide
-          </a>
-        }
       />
       <PersonPicker
         value={personUid}
@@ -1347,6 +1341,7 @@ export function Reconciliation({
             </Button>
           </div>
           {action.feedback}
+          {assignmentUid && <CurrentRequirements key={`${assignmentUid}:${evaluations.data?.length ?? 0}`} assignmentUid={assignmentUid} />}
           {evaluationUid &&
             (evaluation.loading || evaluation.error ? (
               <Loading error={evaluation.error} />
@@ -1409,8 +1404,7 @@ function EvaluationResults({
         </p>
         {row.stale && (
           <Notice>
-            Case information or reviews have changed. Run a fresh evaluation
-            before relying on this result.
+            Case information, reviews, policy evaluation rules, or the evaluation date have changed. Run a fresh evaluation before relying on this saved result.
           </Notice>
         )}
         <p>
@@ -1436,6 +1430,9 @@ function EvaluationResults({
                 Check: {finding.field_paths.map(human).join(", ")}
               </p>
             )}
+            {finding.document_references?.map((ref: Row) => (
+              <div key={ref.document_uid}><p>Evidence revision {ref.revision}</p><EvidenceDates dates={ref.dates} /></div>
+            ))}
             <div className="actions">
               {finding.document_references?.map((ref: Row) => (
                 <Button

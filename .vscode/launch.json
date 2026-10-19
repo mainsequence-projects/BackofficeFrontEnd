@@ -13,6 +13,7 @@
         "--api-port", "28641",
         "--site-port", "5174",
         "--metatables-port", "18473",
+        "--agent-port", "28643",
         "--sdk-session-source", "vscode",
         "--restart-unhealthy-metatables"
       ],

@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { platformRequestProxy } from "@dev-mainsequence/command-center-sdk/vite";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), platformRequestProxy()],
   server: {
     host: "127.0.0.1",
     port: 5174,

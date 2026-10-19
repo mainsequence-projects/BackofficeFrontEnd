@@ -1,0 +1,46 @@
+.backoffice-assistant-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.backoffice-assistant-workspace[data-assistant-docked="true"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.backoffice-assistant-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.backoffice-assistant-page {
+  height: 100dvh;
+  min-height: 0;
+}
+.backoffice-assistant-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.backoffice-assistant-body > .ms-chat-thread {
+  flex: 1;
+  min-height: 0;
+}
+.backoffice-assistant-context {
+  flex-shrink: 0;
+  max-height: 5rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-body-xs);
+}
+.backoffice-assistant-unavailable,
+.backoffice-assistant-providers {
+  padding: 1rem;
+  overflow: auto;
+}

@@ -1,8 +1,54 @@
 # Back Office assistant right rail
 
-Status: implementation plan, verified against Command Center SDK 0.5.18 and
-the published Command Center AI 0.0.15 package on 2026-10-19. The rail is not
-implemented. The backend business API and Tau agent are prerequisites.
+Status: frontend implemented with Command Center SDK 0.5.18 and Command Center AI
+0.0.15 on 2026-10-19. The API's ADR 0002 owns the read-only Back Office Agent.
+Live conversation verification awaits that Agent and its discovery endpoint.
+
+## Current integration decision
+
+| Input | Application decision |
+| --- | --- |
+| Purpose | Explain a case's pinned document set and missing requirements using ADR 0002's read-only agent. |
+| Deployment | Static site embedded in Command Center; explicit loopback Vite development transport. |
+| Surfaces | Package launcher, resizable right rail, expanded `/agent` page and session explorer over one engine. |
+| Placement | Dock from 1400px; overlay below; width is retained above the conditional rail mount. |
+| Agent and Environment | One authenticated `/assistant/context` response from the Back Office API. |
+| Default session | Stable `backoffice_assistant` handle, scoped by the package to person and Agent. |
+| Platform sender | SDK iframe `sendPlatformRequest`; local Vite `platformRequestProxy` only in development on loopback. |
+| Runtime transport | Package-owned runtime access and streaming to its authorized runtime URL. |
+| Model providers | Package settings inside the conversation, with the same connection, person and Environment. |
+| Context | Route-derived record references only; retained when the conversation expands. |
+| Notifications | Visible status/error notices with a dismiss control. |
+| Guidance | `mount-agent-conversation`, `compose-command-center-ai-rail`, `manage-agent-sessions`, `manage-model-providers`, and `connect-command-center-ai-to-the-platform`. |
+
+The application does not select a different Agent when discovery fails. Missing,
+denied or malformed configuration leaves the assistant unavailable while the
+business screens remain usable. All business authority remains in the API's MCP
+checks. The initial read-only agent needs no mutation-driven record invalidation.
+
+## API integration contract
+
+Implement authenticated `GET /assistant/context` alongside ADR 0002. Return:
+
+```json
+{"environmentUid":"<API Environment UUID>","agentUid":"<Back Office Agent UUID>"}
+```
+
+Resolve both values server-side in the API's own Environment, including access
+to the current deployed Agent; never use the person's selected host Environment.
+Return an explicit unavailable error when no compatible Agent exists. No browser
+build value contains either UID. The frontend resolves the endpoint on opening
+the assistant, explicit retry and network reconnection. Local development also
+requires the proxy's signed-in identity to match the business API viewer.
+
+`src/assistant/connection.ts` owns discovery and the authenticated platform sender.
+`src/assistant/Assistant.tsx` owns the single provider, rail, expanded page,
+context and navigation. `src/assistant/assistant.css` places the package surfaces
+without recreating their chrome. `tests/assistant.mjs` uses the published package's
+scripted platform/runtime in test code only; it is absent from production bundles.
+
+The remaining sections retain the broader delivery plan. Backend agent rollout,
+live Environment verification and any future write tools remain separate work.
 
 ## Outcome and placement
 
@@ -37,7 +83,8 @@ the host theme and package frame without recreating its chrome.
    includes the installed SDK 0.5.18 and React 19. Install one compatible AI
    package, refresh its packaged skills with `command-center-ai skills install`,
    and use `command-center-sdk code-repository sync` to refresh the root lockfile.
-   No dependency is added by this plan.
+   Command Center AI 0.0.15 is now pinned beside SDK 0.5.18; its packaged skills
+   and the root lockfile have been refreshed.
 2. Implement and deploy the backend's repository-owned `ms-tau-sdk` reconciliation
    agent, business REST/MCP operations, and readiness contract. Reuse the backend
    plan's permissions and review restrictions. Declare API access to the agent
@@ -59,12 +106,10 @@ Add these application-owned modules with the shell milestone:
 
 | Module | Responsibility |
 | --- | --- |
-| `src/app/providers.tsx` | One `ChatEngineProvider` above routes and both assistant surfaces. |
-| `src/features/agent/connection.ts` | One `createChatBackendConnection` shared with provider settings. |
-| `src/features/agent/AssistantRail.tsx` | Launcher, responsive rail, controlled width, close and expand. |
-| `src/features/agent/AssistantPage.tsx` | Expanded page, session URL selection, minimize and return location. |
-| `src/features/agent/context.ts` | Small, typed, JSON-safe business context derived from the selected record. |
-| `src/features/agent/refresh.ts` | Refresh authoritative records affected by confirmed completed tool mutations. |
+| `src/assistant/Assistant.tsx` | One provider; launcher, responsive rail, expanded page, sessions, notifications and route-derived references. |
+| `src/assistant/connection.ts` | Shared backend connection, authenticated discovery and local viewer verification. |
+| `src/assistant/assistant.css` | Application placement around the package-owned surfaces. |
+| Future write-tool integration | Refresh authoritative records only after confirmed completed business mutations. |
 
 Supply the connection's `sendPlatformRequest` through the SDK iframe client's
 `sendPlatformRequest`. Pass `auth: { userUid }` from the trusted identity;

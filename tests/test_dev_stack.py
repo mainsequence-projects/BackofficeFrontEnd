@@ -48,6 +48,51 @@ class LocalStackTests(unittest.TestCase):
             stack.relay_to_backend_python(backend, [])
             start.assert_not_called()
 
+    def test_tau_uses_local_workspace_and_cannot_enable_the_excluded_tools(self):
+        backend = Path("/example/backend")
+        args = SimpleNamespace(
+            agent_port=28643,
+            agent_provider="configured-provider",
+            agent_model="configured-model",
+            agent_thinking="medium",
+        )
+        inherited = {
+            "MAINSEQUENCE_ENDPOINT": "http://platform.invalid",
+            "TAU_EXCLUDE_BASE_TOOLS": "false",
+        }
+        result = stack.tau_environment(backend, args, inherited)
+        self.assertEqual(result["TAU_LOCAL_MODE"], "true")
+        self.assertEqual(result["MAINSEQUENCE_TAU_HOST"], "127.0.0.1")
+        self.assertEqual(result["MAINSEQUENCE_TAU_PORT"], "28643")
+        self.assertEqual(result["MAINSEQUENCE_TAU_WORKSPACE"], str(backend))
+        self.assertEqual(result["MAINSEQUENCE_CLI"], str(backend / ".venv/bin/mainsequence"))
+        self.assertEqual(result["MAINSEQUENCE_ENDPOINT"], inherited["MAINSEQUENCE_ENDPOINT"])
+        self.assertEqual(result["TAU_EXCLUDE_BASE_TOOLS"], "true")
+        self.assertEqual(result["TAU_EXCLUDE_MAINSEQUENCE_MCP"], "true")
+        self.assertEqual(result["TAU_LOCAL_MODEL"], "configured-model")
+        self.assertEqual(inherited["TAU_EXCLUDE_BASE_TOOLS"], "false")
+
+    def test_agent_readiness_requires_the_restricted_local_runtime(self):
+        ready = {
+            "mode": "local",
+            "ok": True,
+            "exclude_base_tools": True,
+            "exclude_mainsequence_mcp": True,
+        }
+        with patch.object(stack, "read_url", return_value=ready) as read:
+            self.assertTrue(stack.local_agent_ready("http://127.0.0.1:28643"))
+            read.assert_called_once_with("http://127.0.0.1:28643/ready", as_json=True, timeout=30)
+        for change in (
+            {"mode": "managed"},
+            {"exclude_base_tools": False},
+            {"exclude_mainsequence_mcp": False},
+        ):
+            with patch.object(stack, "read_url", return_value=ready | change):
+                with self.assertRaisesRegex(RuntimeError, "restricted local helper"):
+                    stack.local_agent_ready("http://127.0.0.1:28643")
+        with patch.object(stack, "read_url", return_value=ready | {"ok": False}):
+            self.assertFalse(stack.local_agent_ready("http://127.0.0.1:28643"))
+
     def test_only_the_specific_metatables_identity_error_allows_recovery(self):
         for status, detail, expected in (
             (503, "Current platform identity facts are unavailable.", True),

@@ -8,6 +8,7 @@
     {"id":"persons","label":"People","kind":"feature","applicationRoute":"/persons"},
     {"id":"documents","label":"Documents","kind":"feature","applicationRoute":"/documents"},
     {"id":"document-sets","label":"Document Sets","kind":"feature","applicationRoute":"/document-sets"},
-    {"id":"reconciliation","label":"Reconciliation","kind":"feature","applicationRoute":"/reconciliation"}
+    {"id":"reconciliation","label":"Reconciliation","kind":"feature","applicationRoute":"/reconciliation"},
+    {"id":"agent","label":"Agent","kind":"feature","applicationRoute":"/agent"}
   ]
 }

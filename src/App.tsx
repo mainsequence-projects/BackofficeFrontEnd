@@ -5,6 +5,7 @@ import {
   defineNavigationApplication,
 } from "@dev-mainsequence/command-center-sdk/navigation";
 import { ApplicationStatusScreen } from "@dev-mainsequence/command-center-sdk/feedback";
+import { Button } from "@dev-mainsequence/command-center-sdk/controls";
 import {
   applyThemePresetToRoot,
   resolveCommandCenterThemeById,
@@ -12,6 +13,7 @@ import {
   quartzLightTheme,
 } from "@dev-mainsequence/command-center-sdk/theme";
 import { api, ApiError, errorText, type Catalog } from "./api";
+import { AssistantWorkspace } from "./assistant/Assistant";
 import {
   People,
   PersonPage,
@@ -45,6 +47,12 @@ const destinations = [
     label: "Reconciliation",
     href: "/reconciliation",
     description: "Coverage, findings and next actions",
+  },
+  {
+    id: "agent",
+    label: "Agent",
+    href: "/agent",
+    description: "Ask the Back Office assistant about a case",
   },
 ];
 const navigation = defineNavigationApplication({
@@ -300,7 +308,7 @@ export default function App() {
         />
       )
     ) : section === "document-sets" ? (
-      <DocumentSets catalog={catalog} selected={uid} />
+      <DocumentSets catalog={catalog} selected={uid} version={url.searchParams.get("version") ?? undefined} />
     ) : section === "reconciliation" ? (
       <Reconciliation
         catalog={catalog}
@@ -319,9 +327,38 @@ export default function App() {
       menuOpen={menu}
       onMenuOpenChange={setMenu}
       onNavigate={(intent) => navigate(`/${intent.destinationId}`)}
+      panelClassName="backoffice-navigation"
+      renderDestinationTrailing={({ destination }) =>
+        destination.id === destinations[destinations.length - 1].id ? (
+          <div className="documentation-footer">
+            <Button
+              iconOnly
+              variant="ghost"
+              aria-label="Documentation"
+              title="Documentation"
+              onClick={() => location.assign("/docs/")}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                aria-hidden="true"
+              >
+                <path d="M12 5.5C9.5 3.7 6 3.7 3 5v14c3-1.3 6.5-1.3 9 .5 2.5-1.8 6-1.8 9-.5V5c-3-1.3-6.5-1.3-9 .5Z" />
+                <path d="M12 5.5v14" />
+              </svg>
+            </Button>
+          </div>
+        ) : null
+      }
       presentation="auto"
     >
-      {page}
+      <AssistantWorkspace path={path} userUid={catalog.viewer.user_uid} onNavigate={navigate}>
+        {page}
+      </AssistantWorkspace>
     </ApplicationNavigationPanelShell>
   );
 }

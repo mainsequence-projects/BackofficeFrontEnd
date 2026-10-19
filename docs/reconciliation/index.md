@@ -49,3 +49,22 @@ result is out of date, choose **Run fresh evaluation**. If evaluation reports a
 changed assignment, reload the current case before trying again. A failed or
 interrupted evaluation never means the case is complete; follow the displayed
 recovery action or use **Resume and reload**.
+
+## Current status and renewal reminders
+
+**Current requirements and renewals** checks evidence against today's UTC date
+when opened, when the window regains focus, and every minute while open. It is
+also available on the person's Requirements tab. Use its reload control for an
+immediate check. Missing or failed checks remain visible rather than showing a
+previous successful result as current.
+
+Each evidence reference can show **Evidence dated**, **Fresh through**,
+**Expires on**, **Renewal due on**, and the next action date. **Due soon** means
+within 30 days; **Due today** and **Overdue** require action. A still-valid
+alternative can satisfy a requirement even when another document needs renewal.
+These are in-app reminders; no email or background notifications are sent.
+
+Saved evaluations remain historical snapshots. Their dates and findings do not
+change after a new review. An **Out of date** badge means that evidence, reviews,
+the evaluation date, or evaluation rules have changed; run a fresh evaluation
+to retain a new audit result.

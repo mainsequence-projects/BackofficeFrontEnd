@@ -19,8 +19,8 @@ history; changed evidence makes prior evaluations visibly out of date.
 
 - Use `@dev-mainsequence/command-center-sdk` for the application shell, controls,
   resource views, theme, and authorized embedded FastAPI transport.
-- The separate assistant milestone will use `@dev-mainsequence/command-center-ai`
-  after a deployed Tau agent and its tools exist.
+- Use `@dev-mainsequence/command-center-ai` for the assistant rail, shared
+  conversation engine, expanded Agent page, and model-provider settings.
 - Obtain document fields and descriptions from the backend's Pydantic schemas.
 - Deploy the application as a Main Sequence Static Site from this repository root.
 
@@ -30,7 +30,8 @@ deployment on every push to the registered Production `main` branch, builds
 [deployment guide](engineering/deployment.md) for validation and release checks.
 The [assistant right-rail plan](engineering/assistant-right-rail.md) defines the
 responsive conversation surface, shared session engine, backend prerequisites,
-and acceptance checks; the assistant is not implemented yet.
+and acceptance checks. The frontend is implemented; live conversation requires
+the API's ADR 0002 Agent and authenticated `/assistant/context` discovery endpoint.
 
 ## Current development commands
 
@@ -45,6 +46,7 @@ authentication, local migrations, shared-runtime troubleshooting, and debugging.
 npm ci
 npm run dev
 npm run build
+npm run test:assistant
 ```
 
 Use Node 24. `npm run check` validates types, SDK theme usage, and guide structure.

@@ -1,4 +1,4 @@
-"""VS Code launcher: local MetaTables, the real backend API, and the Vite static site."""
+"""VS Code launcher: local MetaTables, Back Office API, Tau agent, and Vite."""
 
 import argparse
 import json
@@ -145,7 +145,7 @@ def ensure_ports_free(ports):
     if any(not 1 <= port <= 65535 for port in ports):
         raise RuntimeError("Ports must be between 1 and 65535.")
     if len(set(ports)) != len(ports):
-        raise RuntimeError("The API, static site and MetaTables ports must differ.")
+        raise RuntimeError("The API, static site, Tau agent and MetaTables ports must differ.")
     for port in ports:
         if not port_available(port):
             raise RuntimeError(
@@ -250,6 +250,35 @@ def read_url(url, *, as_json=False, timeout=2):
         return json.load(response) if as_json else response.status == 200
 
 
+def tau_environment(backend, args, environment):
+    """Start the SDK in its local mode with the project's helper restrictions."""
+    return dict(
+        environment,
+        MAINSEQUENCE_AUTH_MODE="jwt",
+        MAINSEQUENCE_CLI=str(backend / ".venv/bin/mainsequence"),
+        MAINSEQUENCE_TAU_HOST="127.0.0.1",
+        MAINSEQUENCE_TAU_PORT=str(args.agent_port),
+        MAINSEQUENCE_TAU_WORKSPACE=str(backend),
+        MAINSEQUENCE_TAU_STATE_ROOT=str(backend / ".local/tau-home"),
+        TAU_LOCAL_MODE="true",
+        TAU_LOCAL_STATE_ROOT=str(backend / ".local/tau"),
+        TAU_LOCAL_PROVIDER=args.agent_provider,
+        TAU_LOCAL_MODEL=args.agent_model,
+        TAU_LOCAL_THINKING=args.agent_thinking,
+        TAU_EXCLUDE_BASE_TOOLS="true",
+        TAU_EXCLUDE_MAINSEQUENCE_MCP="true",
+    )
+
+
+def local_agent_ready(origin):
+    state = read_url(f"{origin}/ready", as_json=True, timeout=30)
+    if state.get("mode") != "local" or any(
+        state.get(flag) is not True for flag in ("exclude_base_tools", "exclude_mainsequence_mcp")
+    ):
+        raise RuntimeError("The Tau agent did not start in the restricted local helper mode.")
+    return state.get("ok") is True
+
+
 def stop_children(children):
     # Each process group belongs to this launch. An already-running shared
     # MetaTables API is never added, so stopping F5 does not stop someone else's API.
@@ -277,6 +306,11 @@ def run(args):
     vite = SITE_DIR / "node_modules/vite/bin/vite.js"
     if not vite.is_file():
         raise RuntimeError("Run the 'Back Office: install local dependencies' VS Code task first.")
+    tau = backend / ".venv/bin/ms-tau"
+    if not args.no_agent and not tau.is_file():
+        raise RuntimeError(
+            "The Tau SDK is missing. Run the 'Back Office: install backend dependencies' VS Code task."
+        )
     os.chdir(backend)
     sys.path.insert(0, str(backend))
     os.environ.setdefault("TDAG_ROOT_PATH", str(backend / ".local/sdk"))
@@ -305,8 +339,11 @@ def run(args):
 
     api_origin = f"http://127.0.0.1:{args.api_port}"
     site_origin = f"http://127.0.0.1:{args.site_port}"
+    agent_origin = f"http://127.0.0.1:{args.agent_port}"
     existing = running_server()
     ports = [args.api_port, args.site_port]
+    if not args.no_agent:
+        ports.append(args.agent_port)
     if not existing:
         ports.append(args.metatables_port)
     recover_orphaned_services(backend, args.api_port, args.site_port)
@@ -430,6 +467,14 @@ def run(args):
             env=backend_env,
         )
         wait_for(lambda: read_url(f"{api_origin}/healthz"), children, "the Back Office API")
+        if not args.no_agent:
+            print(f"Starting local Tau agent: {agent_origin}", flush=True)
+            start([str(tau)], env=tau_environment(backend, args, os.environ))
+            wait_for(
+                lambda: local_agent_ready(agent_origin),
+                children,
+                "the local Tau agent (authentication, provider and local storage)",
+            )
         site_env = {
             key: value
             for key, value in os.environ.items()
@@ -449,6 +494,8 @@ def run(args):
             }
         }
         site_env["BACKOFFICE_API_ORIGIN"] = api_origin
+        if not args.no_agent:
+            site_env["MAINSEQUENCE_TAU_LOCAL_ORIGIN"] = agent_origin
         start(
             [
                 "node",
@@ -477,6 +524,8 @@ def run(args):
             raise RuntimeError("The local API did not verify the developer identity.")
         print(f"Back Office ready: {site_origin}/", flush=True)
         print(f"API: {api_origin} | MetaTables: {state['api_endpoint']}", flush=True)
+        if not args.no_agent:
+            print(f"Tau agent: {agent_origin} (local mode)", flush=True)
         if args.verify_only:
             from metatables import MetaTable
 
@@ -509,6 +558,15 @@ def main():
     parser.add_argument("--api-port", type=int, default=28641)
     parser.add_argument("--site-port", type=int, default=5174)
     parser.add_argument("--metatables-port", type=int, default=18473)
+    parser.add_argument("--agent-port", type=int, default=28643)
+    parser.add_argument(
+        "--agent-provider", default=os.environ.get("TAU_LOCAL_PROVIDER", "openai-codex")
+    )
+    parser.add_argument("--agent-model", default=os.environ.get("TAU_LOCAL_MODEL", "gpt-5.5"))
+    parser.add_argument("--agent-thinking", default=os.environ.get("TAU_LOCAL_THINKING", "medium"))
+    parser.add_argument(
+        "--no-agent", action="store_true", help="Explicitly run only the API, MetaTables and site."
+    )
     parser.add_argument(
         "--restart-unhealthy-metatables",
         action="store_true",

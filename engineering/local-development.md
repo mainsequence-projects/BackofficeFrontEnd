@@ -2,7 +2,7 @@
 
 Open this static-site repository as the VS Code workspace. Its
 [launch configuration](../.vscode/launch.json) starts the backend checkout,
-the installed Main Sequence MetaTables API, and Vite together.
+the installed Main Sequence MetaTables API, the Tau agent in local mode, and Vite together.
 
 ## First setup
 
@@ -29,6 +29,7 @@ script relaunches itself with the backend interpreter before importing SDKs.
 | Static site | `http://127.0.0.1:5174/` |
 | Back Office API | `http://127.0.0.1:28641/` |
 | MetaTables API | `http://127.0.0.1:18473/` |
+| Tau local agent | `http://127.0.0.1:28643/` |
 | API health through Vite | `http://127.0.0.1:5174/api/healthz` |
 
 The launcher starts or reuses local MetaTables, verifies Local mode and the selected
@@ -46,6 +47,23 @@ starter; document-management screens remain subsequent work.
 Stop the debugging session or use Ctrl+C in its terminal to stop the processes
 owned by that launch. A pre-existing healthy MetaTables process remains running.
 Local records persist across starts. The launcher never deletes a database.
+
+The agent runs the backend's locked `.venv/bin/ms-tau` with `TAU_LOCAL_MODE=true`,
+the backend checkout as its workspace, and the existing Main Sequence session.
+The launcher waits for its `/ready` endpoint and verifies both helper exclusion
+flags before reporting the stack ready. Tau uses local state under the backend's
+`.local/tau/` and `.local/tau-home/`; stopping F5 also stops this agent process.
+Provider control and inference remain live Main Sequence services. The defaults
+match the project's agent configuration: `openai-codex`, `gpt-5.5`, and `medium`.
+Override them with `--agent-provider`, `--agent-model`, and `--agent-thinking`, or
+the corresponding `TAU_LOCAL_PROVIDER`, `TAU_LOCAL_MODEL`, and `TAU_LOCAL_THINKING`
+environment variables. No model call is made by the launcher verification.
+
+The existing helper policy still requires a verified requester for business tools;
+local startup does not bypass that check or register a hosted Agent. The current
+assistant rail uses the deployed-agent connection; starting Tau does not switch
+that rail to a local source. Use `--no-agent` only when deliberately testing the
+API and site without Tau.
 
 Python debugging includes subprocesses, including the API reload worker. The
 optional **Back Office: browser debugger** configuration opens Chrome against the

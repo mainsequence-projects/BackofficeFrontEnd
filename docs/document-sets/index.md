@@ -46,3 +46,29 @@ If a policy is unavailable, use **Document Sets** to inspect available published
 versions. If you are unsure whether a condition applies, complete the person's
 reference profile and run a fresh evaluation. Ask your policy owner to resolve
 an unsuitable requirement; do not substitute fabricated evidence.
+
+## Freshness and periodic renewal
+
+A requirement accepts any qualifying alternative; identity can be satisfied by a
+passport or national identity card. Check the version in the list and on the
+assignment: existing assignments retain their original version.
+
+Version 1 retains its original 90-day address rule. Version 2 accepts address
+evidence and completed questionnaires up to six calendar months old, and requires
+identity evidence to be reviewed again every six calendar months. These are
+illustrative policy choices, not universal legal requirements.
+
+Freshness measures the age of the evidence from the named issue, statement-end,
+or completion field. Uploading a file or accepting it again does not reset that
+age. Datetime fields use their UTC calendar date. Evidence qualifies through the
+age-limit date and needs replacement the next day.
+
+Periodic renewal is separate. A rule may require another review measured from
+the latest accepted review, or a new submitted revision measured from submission.
+Renewal is due on the anniversary, so evidence no longer qualifies on that date.
+Six calendar months is not 180 days: August 31 plus six months is February 28
+(or February 29 in a leap year).
+
+The document-set page displays the age basis and renewal interval for every
+alternative. Policy definitions are published through the backend catalog;
+this page does not edit them.

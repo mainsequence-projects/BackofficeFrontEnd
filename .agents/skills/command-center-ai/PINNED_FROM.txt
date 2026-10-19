@@ -1,0 +1,16 @@
+schema=2
+library_name=@dev-mainsequence/command-center-ai
+namespace=command-center-ai
+ownership=authoritative_namespace
+pinned_version=0.0.15
+skills_path=/Users/jose/mainsequence-dev/main-sequence-workbench/projects/backofficefrontend-d7b07f7a-feed-469a-90f6-b2ae8402950a/node_modules/@dev-mainsequence/command-center-ai/agent_scaffold/skills
+copied_at_utc=2026-10-19T13:41:22.357Z
+command=npm postinstall
+skill_path=backend/connect-command-center-ai-to-the-platform
+skill_path=contracts/design-agent-conversation-capabilities
+skill_path=engine/mount-agent-conversation
+skill_path=general/build-command-center-ai-application
+skill_path=general/use-command-center-ai
+skill_path=model-providers/manage-model-providers
+skill_path=sessions/manage-agent-sessions
+skill_path=ui/compose-command-center-ai-rail

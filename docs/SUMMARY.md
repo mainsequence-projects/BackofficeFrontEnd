@@ -7,3 +7,4 @@ This map and the Docusaurus sidebar are generated from `documentation/navigation
 - [Documents](documents/index.md)
 - [Document Sets](document-sets/index.md)
 - [Reconciliation](reconciliation/index.md)
+- [Agent](agent/index.md)

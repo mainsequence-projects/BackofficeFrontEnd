@@ -38,6 +38,28 @@ grant the API workload namespace access from the human operator session, verify
 API readiness and the actual authenticated Command Center launch. A successful
 build alone does not establish that the hosted application works.
 
-OCR extraction and the Tau assistant remain separate milestones documented in
-`assistant-right-rail.md`; the manual application does not expose simulated agent
+OCR extraction and the live Tau Agent remain backend milestones documented in
+`assistant-right-rail.md`. The application exposes no simulated agent replies
 or extraction actions.
+
+## Assistant frontend verification
+
+Command Center AI 0.0.15 is installed with the existing SDK 0.5.18. The rail,
+expanded `/agent` page and six-page guide build together. `npm run test:assistant`
+uses the published package's scripted platform/runtime from test code only.
+It verifies streamed reasoning/tool/text output, a stable session handle,
+Environment-scoped session reads, expanding/minimizing with the same conversation
+and return URL, pointer/keyboard resizing with matching docked content, stop,
+failed-turn retry, absent-agent recovery, focus restoration, and 1440px/1280px/
+375px layouts in both light and dark themes. Screenshots are under ignored
+`.local/assistant-verification/`.
+
+AI 0.0.15 emits the deliberately refused provider stream as an unhandled rejection
+in addition to rendering its error. The suite permits only that exact intentional
+error and verifies successful retry; it does not suppress other browser errors.
+No dependency internals were patched. This remains a package issue.
+
+Live verification awaits the ADR 0002 Agent and authenticated API discovery at
+`GET /assistant/context`. The frontend fails closed until the API returns both
+the Agent UID and its own Environment UID. It never uses a guessed Agent or the
+host's selected Environment, and business screens remain usable when unavailable.

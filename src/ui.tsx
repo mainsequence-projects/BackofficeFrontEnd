@@ -16,9 +16,10 @@ export function Status({ value }: { value: string }) {
       variant={
         ["accepted", "satisfied", "completed", "ready"].includes(value)
           ? "success"
-          : ["rejected", "failed"].includes(value)
+          : ["rejected", "failed", "overdue", "due_today"].includes(value)
             ? "danger"
             : [
+                  "due_soon",
                   "pending",
                   "pending_review",
                   "needs_information",

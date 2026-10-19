@@ -4,9 +4,10 @@ Status: the first manual casework release is implemented and verified in the
 browser against the real backend. Deployment is tracked in the release checks. The backend exposes
 people, source uploads, draft revisions, submission/review, assignments, evaluations,
 history and operation recovery. Forms consume all ten backend schemas. The four
-implemented destinations and their user guides are People, Documents, Document
-Sets and Reconciliation. OCR extraction and the Tau assistant remain separate
-backend-dependent milestones; the Agent route is not exposed yet.
+manual casework destinations and their user guides are People, Documents,
+Document Sets and Reconciliation. The assistant rail, Agent route and its guide
+are also implemented. OCR extraction and live Tau agent availability remain
+backend-dependent milestones; the API's ADR 0002 owns the initial read-only agent.
 
 ## Responsibilities and dependencies
 
@@ -106,9 +107,10 @@ backend agent. Carry only supported business context, such as the selected perso
 assignment, document revision, and evaluation reference. A business record UID is
 not an authentication identity or permission grant.
 
-The agent can explain requirements, propose extraction/corrections with evidence,
-initiate permitted processing/evaluation, and explain findings. Its first-release
-role does not accept or reject documents. Render loading, reconnection,
+The frontend rail and expanded Agent route are implemented. The API's ADR 0002
+defines the initial read-only agent: explain cases, pinned policies and missing
+requirements. Extraction, corrections and processing/evaluation commands remain
+future capabilities. The agent does not accept or reject documents. Render loading, reconnection,
 cancellation, tool failure, unavailable-agent, and permission states using the
 supported AI package interfaces. Refresh affected business views after a completed
 mutation. Agent prose does not itself update the displayed authoritative record.

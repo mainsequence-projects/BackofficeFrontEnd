@@ -65,3 +65,17 @@ Validation messages name fields needing attention; entered attributes stay visib
 For a changed revision, select **Reload latest** before reviewing or editing it.
 If review controls are unavailable, submit the draft or ask an authorized reviewer.
 Use **Resume and reload** when an interrupted change needs recovery.
+
+## Document and evidence dates
+
+The **Document dates** panel shows when the document was first recorded, when the
+selected revision was recorded and submitted, and when it was last reviewed.
+These timestamps are recorded by the service and displayed in your local timezone.
+An unsubmitted draft says **Not submitted**; retained revisions show their own dates.
+
+The original evidence's issue date or completion date remains in its attributes.
+It is different from the upload/recording timestamp. Re-uploading an old bill or
+reviewing it again does not make it fresh. Check **Current requirements and
+renewals** on the person's Requirements tab for policy-specific deadlines.
+For a review renewal, open **Review document**, inspect the evidence, and record a
+new acceptance with a reason. An expired or stale source still needs replacement.
