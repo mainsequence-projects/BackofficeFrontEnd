@@ -7,7 +7,7 @@ import socket
 import subprocess
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -243,6 +243,77 @@ class LocalStackTests(unittest.TestCase):
             self.assertFalse(stack.orphaned_service(process, **checks))
         with patch.object(stack.os, "getpgid", return_value=process.pid + 1):
             self.assertFalse(stack.orphaned_service(process, **checks))
+
+    def test_explicit_restart_can_replace_verified_services_adopted_by_an_app_host(self):
+        backend = Path("/example/backend")
+        process = self.orphan(backend)
+        process.ppid.return_value = 9000
+        checks = dict(cwd=backend, port=28641, target="scripts.local_api:create_app")
+        with patch.object(stack.os, "getpgid", return_value=process.pid):
+            self.assertFalse(stack.orphaned_service(process, **checks))
+            self.assertTrue(stack.orphaned_service(process, **checks, restart_existing=True))
+            process.cwd.return_value = "/another/project"
+            self.assertFalse(stack.orphaned_service(process, **checks, restart_existing=True))
+
+    def test_relative_vite_entry_is_resolved_in_the_verified_project_directory(self):
+        process = self.orphan(stack.SITE_DIR)
+        process.cmdline.return_value = [
+            "node",
+            "node_modules/vite/bin/vite.js",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "5174",
+        ]
+        with patch.object(stack.os, "getpgid", return_value=process.pid):
+            self.assertTrue(
+                stack.orphaned_service(
+                    process,
+                    cwd=stack.SITE_DIR,
+                    port=5174,
+                    target=str(stack.SITE_DIR / "node_modules/vite/bin/vite.js"),
+                )
+            )
+
+    def test_legacy_tau_restart_requires_exact_local_workspace_port_and_exclusions(self):
+        backend = Path("/example/backend")
+        process = self.orphan(backend)
+        process.ppid.return_value = 9000
+        process.cmdline.return_value = ["python", str(backend / ".venv/bin/ms-tau")]
+        environment = {
+            "MAINSEQUENCE_TAU_WORKSPACE": str(backend),
+            "MAINSEQUENCE_TAU_HOST": "127.0.0.1",
+            "MAINSEQUENCE_TAU_PORT": "28643",
+            "TAU_LOCAL_MODE": "true",
+            "TAU_EXCLUDE_BASE_TOOLS": "true",
+            "TAU_EXCLUDE_MAINSEQUENCE_MCP": "true",
+        }
+        process.environ.return_value = environment
+        checks = dict(cwd=backend, port=28643, target="api.tau.main:app", restart_existing=True)
+        with patch.object(stack.os, "getpgid", return_value=process.pid):
+            self.assertTrue(stack.orphaned_service(process, **checks))
+            for key in environment:
+                process.environ.return_value = environment | {key: "different"}
+                self.assertFalse(stack.orphaned_service(process, **checks))
+
+    def test_launch_failure_keeps_the_cause_and_redacts_credentials_in_private_error_file(self):
+        output = io.StringIO()
+        with TemporaryDirectory() as directory:
+            error_file = Path(directory) / "error.json"
+            try:
+                try:
+                    raise ValueError("Bearer synthetic-secret eyJhbGciOiJIUzI1NiJ9.e30.c2ln")
+                except ValueError as cause:
+                    raise RuntimeError("Preparation failed") from cause
+            except RuntimeError as error:
+                with patch.object(stack, "LOCAL_ERROR_LOG", error_file), redirect_stderr(output):
+                    stack.record_launch_error(error)
+            detail = error_file.read_text()
+            self.assertIn("ValueError", output.getvalue())
+            self.assertIn("RuntimeError", output.getvalue())
+            self.assertNotIn("synthetic-secret", output.getvalue() + detail)
+            self.assertNotIn("eyJhbGciOiJIUzI1NiJ9.e30.c2ln", output.getvalue() + detail)
+            self.assertEqual(error_file.stat().st_mode & 0o777, 0o600)
 
     def test_recovery_stops_only_a_verified_orphan_and_preserves_live_launches(self):
         backend = Path("/example/backend")

@@ -55,6 +55,16 @@ Stop the debugging session to stop the processes
 owned by that launch. A pre-existing healthy MetaTables process remains running.
 Local records persist across starts. The launcher never deletes a database.
 
+F5 passes `--restart-project-services` to replace only verified Back Office API,
+Vite and agent listeners from this user and checkout. This also handles old services
+adopted by an app host, whose parent remains alive after the original launch exits.
+The process group, command, directory, host and port must match; the legacy Tau CLI
+also requires matching local workspace and exclusion settings. Shared MetaTables
+and unrelated projects are preserved.
+
+Startup failures print their actual exception chain in the Debug Console and save
+a redacted private copy in `.local/dev-stack-error.json` in this frontend checkout.
+
 The agent runs the SDK-owned `api.tau.main:app` through the backend's locked Python
 and Uvicorn with `TAU_LOCAL_MODE=true`,
 the backend checkout as its workspace, and the existing Main Sequence session.
@@ -121,8 +131,8 @@ continue to be reused. Occupied API or Vite ports fail before additional service
 start. If VS Code terminated the launcher before child cleanup, the next launch
 stops an orphaned API, Tau agent or Vite process only after verifying its user, project
 directory, isolated process group, command, loopback host, port, and absent parent.
-Services belonging to a running launcher or another project keep the port-conflict
-error. Port checks allow recently closed connections, so immediate restarts work.
+Without `--restart-project-services`, active listeners keep the port-conflict error.
+Other projects always keep it. Port checks allow recently closed connections, so immediate restarts work.
 Adjust the launch arguments and browser-debugger URL together when changing ports.
 
 The backend pins `mainsequence==9.0.29` and `mainsequence-metatable==0.1.49`.

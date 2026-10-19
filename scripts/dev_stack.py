@@ -3,11 +3,13 @@
 import argparse
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 from threading import Thread
 from urllib.error import HTTPError, URLError
@@ -16,6 +18,7 @@ from urllib.request import urlopen
 SITE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_METATABLES_CONFIGURATION = SITE_DIR / "dev/metatables.yaml"
 LOCAL_LAUNCH_STATE = SITE_DIR / ".local/dev-stack.json"
+LOCAL_ERROR_LOG = SITE_DIR / ".local/dev-stack-error.json"
 
 
 def selected_configuration(requested):
@@ -154,16 +157,32 @@ def ensure_ports_free(ports):
             )
 
 
-def orphaned_service(process, *, cwd, port, target):
-    """Only a same-user, isolated service whose original launcher has exited."""
+def orphaned_service(process, *, cwd, port, target, restart_existing=False):
+    """Verify a project service; active services require explicit restart intent."""
     if (
-        process.ppid() != 1
+        (not restart_existing and process.ppid() != 1)
         or process.uids().real != os.getuid()
         or os.getpgid(process.pid) != process.pid
         or Path(process.cwd()).resolve() != cwd.resolve()
     ):
         return False
     command = process.cmdline()
+    if target == "api.tau.main:app" and str(cwd / ".venv/bin/ms-tau") in command:
+        environment = process.environ()
+        expected = {
+            "MAINSEQUENCE_TAU_WORKSPACE": str(cwd),
+            "MAINSEQUENCE_TAU_HOST": "127.0.0.1",
+            "MAINSEQUENCE_TAU_PORT": str(port),
+            "TAU_LOCAL_MODE": "true",
+            "TAU_EXCLUDE_BASE_TOOLS": "true",
+            "TAU_EXCLUDE_MAINSEQUENCE_MCP": "true",
+        }
+        return all(environment.get(key) == value for key, value in expected.items())
+    if target.endswith("/vite.js"):
+        command = [
+            str((cwd / value).resolve()) if value.endswith("/vite.js") else value
+            for value in command
+        ]
     if target not in command:
         return False
     arguments = command[command.index(target) + 1 :]
@@ -175,7 +194,9 @@ def orphaned_service(process, *, cwd, port, target):
     )
 
 
-def recover_orphaned_services(backend, api_port, site_port, agent_port=None):
+def recover_orphaned_services(
+    backend, api_port, site_port, agent_port=None, *, restart_existing=False
+):
     """F5 can kill the launcher without running its child cleanup."""
     import psutil
 
@@ -200,10 +221,13 @@ def recover_orphaned_services(backend, api_port, site_port, agent_port=None):
             try:
                 process = psutil.Process(int(value))
                 created = process.create_time()
-                if not orphaned_service(process, cwd=cwd, port=port, target=target):
+                if not orphaned_service(
+                    process, cwd=cwd, port=port, target=target, restart_existing=restart_existing
+                ):
                     continue
+                action = "Restarting existing" if restart_existing else "Stopping orphaned"
                 print(
-                    f"Stopping orphaned Back Office {label} from an ended debug session (PID {process.pid}).",
+                    f"{action} Back Office {label} on port {port} (PID {process.pid}).",
                     flush=True,
                 )
                 os.killpg(process.pid, signal.SIGTERM)
@@ -212,7 +236,11 @@ def recover_orphaned_services(backend, api_port, site_port, agent_port=None):
                 except psutil.TimeoutExpired:
                     current = psutil.Process(process.pid)
                     if current.create_time() != created or not orphaned_service(
-                        current, cwd=cwd, port=port, target=target
+                        current,
+                        cwd=cwd,
+                        port=port,
+                        target=target,
+                        restart_existing=restart_existing,
                     ):
                         raise RuntimeError(
                             "The orphaned service changed during cleanup; retry."
@@ -332,6 +360,32 @@ def print_service_addresses(api_origin, site_origin, metatables_origin, agent_or
     print("Logs below are labeled [API], [Agent], [Site], and [MetaTables].", flush=True)
 
 
+def record_launch_error(error):
+    """Keep the real exception chain visible instead of replacing it with a guess."""
+    detail = "".join(traceback.format_exception(error))
+    try:
+        from metatables.log_contract import redact_text
+
+        detail = redact_text(detail)
+    except Exception:
+        detail = re.sub(r"(?i)(bearer\s+)\S+", r"\1[redacted]", detail)
+    detail = re.sub(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", "[redacted JWT]", detail)
+    print(f"[Launcher] {detail}", file=sys.stderr, flush=True)
+    try:
+        from metatables.local_files import write_private_json
+
+        write_private_json(
+            LOCAL_ERROR_LOG, {"error_type": type(error).__name__, "traceback": detail}
+        )
+        print(f"[Launcher] Error details saved to {LOCAL_ERROR_LOG}", file=sys.stderr, flush=True)
+    except Exception:
+        print(
+            "[Launcher] Could not save the error file; the traceback is above.",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
 def stop_children(children):
     # Each process group belongs to this launch. An already-running shared
     # MetaTables API is never added, so stopping F5 does not stop someone else's API.
@@ -406,7 +460,11 @@ def run(args):
     if not existing:
         ports.append(args.metatables_port)
     recover_orphaned_services(
-        backend, args.api_port, args.site_port, None if args.no_agent else args.agent_port
+        backend,
+        args.api_port,
+        args.site_port,
+        None if args.no_agent else args.agent_port,
+        restart_existing=args.restart_project_services,
     )
     ensure_ports_free(ports)
     children = []
@@ -655,6 +713,11 @@ def main():
         "--no-agent", action="store_true", help="Explicitly run only the API, MetaTables and site."
     )
     parser.add_argument(
+        "--restart-project-services",
+        action="store_true",
+        help="Restart verified Back Office API, site and agent listeners on the configured ports; never other projects or shared MetaTables.",
+    )
+    parser.add_argument(
         "--restart-unhealthy-metatables",
         action="store_true",
         help="Gracefully replace a verified same-user MetaTables launcher only after its specific identity-unavailable error.",
@@ -677,12 +740,10 @@ def main():
         run(args)
     except KeyboardInterrupt:
         pass
-    except (RuntimeError, OSError) as exc:
-        parser.exit(1, f"Back Office launch failed: {exc}\n")
     except Exception as exc:
+        record_launch_error(exc)
         parser.exit(
-            1,
-            f"Local preparation failed ({type(exc).__name__}); check Main Sequence login, runtime status, and migration permissions.\n",
+            1, f"Back Office launch failed ({type(exc).__name__}); see the traceback above.\n"
         )
 
 
