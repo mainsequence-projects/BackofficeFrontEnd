@@ -176,7 +176,7 @@ export default function App() {
       const theme =
         resolveCommandCenterThemeById(
           new URLSearchParams(location.search).get("theme") ?? "",
-        ) ?? mainSequenceSpaceTheme;
+        ) ?? quartzLightTheme;
       applyThemePresetToRoot(document.documentElement, { theme });
       identity.current = null;
       void start();
@@ -201,9 +201,9 @@ export default function App() {
         applyThemePresetToRoot(document.documentElement, {
           theme:
             resolveCommandCenterThemeById(context.themeId) ??
-            (context.themeMode === "light"
-              ? quartzLightTheme
-              : mainSequenceSpaceTheme),
+            (context.themeMode === "dark"
+              ? mainSequenceSpaceTheme
+              : quartzLightTheme),
         });
         if (started && context.userUid !== identity.current) {
           identity.current = context.userUid;
